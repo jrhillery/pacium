@@ -1,0 +1,16 @@
+{
+   "timesInPreferredOrder": [
+      {
+         "startTime": "13:30",
+         "duration": 90
+      },
+      {
+         "startTime": "14:00",
+         "duration": 90
+      },
+      {
+         "startTime": "13:00",
+         "duration": 90
+      }
+   ]
+}
