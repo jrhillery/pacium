@@ -120,14 +120,12 @@ class PacControl(AbstractContextManager["PacControl"]):
             reportError(ifXcptionMsg, e)
     # end logIn()
 
-    def logOut(self) -> bool:
+    def logOut(self) -> None:
         """Log-out from Prosperity Athletic Club"""
         loUrl = urljoin(self.webDriver.current_url, PacControl.PAC_LOG_OUT)
         try:
             self.webDriver.get(loUrl)
             self.loggedIn = False
-
-            return True
         except WebDriverException as e:
             reportError("Unable to log-out via " + loUrl, e)
     # end logOut()
@@ -253,20 +251,24 @@ class PacControl(AbstractContextManager["PacControl"]):
             reportError(ifXcptionMsg, e)
     # end selectAvailableCourt()
 
+    def cancelPendingReservation(self):
+        ifXcptionMsg = "Unable to cancel pending reservation"
+        try:
+            self.webDriver.find_element(By.LINK_TEXT, "Cancel Reservation").click()
+
+            ifXcptionMsg = "Timed out waiting for cancel"
+            WebDriverWait(self.webDriver, 15).until(
+                invisibility_of_element_located((By.LINK_TEXT, PacControl.RES_SUMMARY)))
+            self.reservationStarted = False
+        except WebDriverException as e:
+            reportError(ifXcptionMsg, e)
+    # end cancelPendingReservation()
+
     def __exit__(self, exc_type: Type[BaseException] | None, exc_value: BaseException | None,
             traceback: TracebackType | None) -> bool | None:
 
         if self.reservationStarted:
-            ifXcptionMsg = "Unable to cancel reservation"
-            try:
-                self.webDriver.find_element(By.LINK_TEXT, "Cancel Reservation").click()
-
-                ifXcptionMsg = "Timed out waiting for cancel"
-                WebDriverWait(self.webDriver, 15).until(
-                    invisibility_of_element_located((By.LINK_TEXT, PacControl.RES_SUMMARY)))
-                self.reservationStarted = False
-            except WebDriverException as e:
-                reportError(ifXcptionMsg, e)
+            self.cancelPendingReservation()
 
         if self.loggedIn:
             self.logOut()
