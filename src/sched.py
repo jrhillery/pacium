@@ -1,7 +1,9 @@
 
+from contextlib import AbstractContextManager
 from datetime import datetime
 from time import sleep
-from typing import Iterator, NamedTuple, Optional
+from types import TracebackType
+from typing import Iterator, NamedTuple, Type
 from urllib.parse import urljoin
 
 from selenium import webdriver
@@ -13,7 +15,8 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.remote.webelement import WebElement
 from selenium.webdriver.support.expected_conditions import (
-    element_to_be_clickable, visibility_of_element_located)
+    element_to_be_clickable, invisibility_of_element_located,
+    visibility_of_element_located)
 from selenium.webdriver.support.ui import WebDriverWait
 
 from courts import Court, Courts
@@ -27,17 +30,25 @@ class CourtAndTime(NamedTuple):
 
 # end class CourtAndTime
 
-class PacControl(object):
+class PacException(Exception):
+    """Class for handled exceptions"""
+    pass
+
+# end class PacException
+
+class PacControl(AbstractContextManager["PacControl"]):
     """Controls Prosperity Athletic Club web pages"""
     PAC_LOG_IN = "https://crcn.clubautomation.com"
     PAC_LOG_OUT = "/user/logout"
+    RES_SUMMARY = "Reservation Summary"
 
     def __init__(self, preferredCourtsArg: str, preferredTimesArg: str,
                  dayOfWeekArg: str, playersArg: str) -> None:
-        self.webDriver: Optional[WebDriver] = None
+        self.webDriver: WebDriver | None = None
         self.loggedIn = False
-        self.found: Optional[CourtAndTime] = None
-        self.playerItr: Optional[Iterator[User]] = None
+        self.reservationStarted = False
+        self.found: CourtAndTime | None = None
+        self.playerItr: Iterator[User] | None = None
         self.preferredCourts = Courts.load(self.parmFile(preferredCourtsArg))
         self.preferredTimes = CourtTimes.load(self.parmFile(preferredTimesArg))
         self.requestDate = CourtTimes.nextDateForDay(dayOfWeekArg)
@@ -68,7 +79,7 @@ class PacControl(object):
         return f"parmFiles/{fileNm}.json"
     # end parmFile(str)
 
-    def getDriver(self) -> Optional[WebDriver]:
+    def getDriver(self) -> WebDriver:
         """Get web driver and open browser"""
         crOpts = webdriver.ChromeOptions()
         crOpts.add_experimental_option("excludeSwitches", ["enable-logging"])
@@ -77,7 +88,7 @@ class PacControl(object):
         return self.webDriver
     # end getDriver()
 
-    def logIn(self) -> Optional[WebElement]:
+    def logIn(self) -> WebElement | None:
         """Log-in to Prosperity Athletic Club home page"""
         ifXcptionMsg = "Unable to open log-in page " + PacControl.PAC_LOG_IN
         try:
@@ -141,6 +152,7 @@ class PacControl(object):
 
             ifXcptionMsg = "Unable to start reserving a court"
             self.webDriver.execute_script("arguments[0].click();", reserveLink)
+            self.reservationStarted = True
 
             return True
         except WebDriverException as e:
@@ -188,7 +200,7 @@ class PacControl(object):
         return "notenabled" not in schBlock.get_attribute("class")
     # end blockAvailable(Court, str)
 
-    def findFirstAvailableCourt(self) -> Optional[CourtAndTime]:
+    def findFirstAvailableCourt(self) -> CourtAndTime | None:
         for courtTime in self.preferredTimes.timesInPreferredOrder:
             timeRows = courtTime.getTimeRows()
 
@@ -228,7 +240,7 @@ class PacControl(object):
                 self.findSchBlock(fac.court, timeRow).click()
 
             ifXcptionMsg = "Unable to view reservation summary"
-            self.webDriver.find_element(By.LINK_TEXT, "Reservation Summary").click()
+            self.webDriver.find_element(By.LINK_TEXT, PacControl.RES_SUMMARY).click()
 
             ifXcptionMsg = "Unable to verify reservation is good"
             if allGood := not self.errorWindowPresent():
@@ -241,6 +253,37 @@ class PacControl(object):
             reportError(ifXcptionMsg, e)
     # end selectAvailableCourt()
 
+    def __exit__(self, exc_type: Type[BaseException] | None, exc_value: BaseException | None,
+            traceback: TracebackType | None) -> bool | None:
+
+        if self.reservationStarted:
+            ifXcptionMsg = "Unable to cancel reservation"
+            try:
+                self.webDriver.find_element(By.LINK_TEXT, "Cancel Reservation").click()
+
+                ifXcptionMsg = "Timed out waiting for cancel"
+                WebDriverWait(self.webDriver, 15).until(
+                    invisibility_of_element_located((By.LINK_TEXT, PacControl.RES_SUMMARY)))
+                self.reservationStarted = False
+            except WebDriverException as e:
+                reportError(ifXcptionMsg, e)
+
+        if self.loggedIn:
+            self.logOut()
+        sleep(3)
+
+        if self.webDriver:
+            self.webDriver.quit()
+            self.webDriver = None
+
+        if isinstance(exc_value, PacException):
+            print(exc_value)
+
+            return True
+        else:
+            return super().__exit__(exc_type, exc_value, traceback)
+    # end __exit__(Type[BaseException] | None, BaseException | None, TracebackType | None)
+
 # end class PacControl
 
 def reportError(txtMsg: str, xcption: Exception):
@@ -249,12 +292,11 @@ def reportError(txtMsg: str, xcption: Exception):
 # end reportError(str, Exception)
 
 if __name__ == "__main__":
-    dayRequested = "Mon"
     try:
-        pacCtrl = PacControl("court6First", "time1330First", dayRequested, "playWithBecky")
-        print(pacCtrl.getReqSummary())
+        with PacControl("court6First", "time1330First", "Fri", "playWithBecky") as pacCtrl:
+            print(pacCtrl.getReqSummary())
+            pacCtrl.getDriver()
 
-        with pacCtrl.getDriver():
             if reserveLink := pacCtrl.logIn():
                 if pacCtrl.navigateToSchedule(reserveLink) \
                         and pacCtrl.addPlayers():
@@ -262,8 +304,6 @@ if __name__ == "__main__":
                         pass
                 print(pacCtrl.getFoundSummary())
                 sleep(12)
-                pacCtrl.logOut()
-            sleep(3)
         # end with
     except FileNotFoundError as e:
         print(f"Unable to open file {e.filename}.")
