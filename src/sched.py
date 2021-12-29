@@ -49,6 +49,7 @@ class PacControl(AbstractContextManager["PacControl"]):
     """Controls Prosperity Athletic Club web pages"""
     PAC_LOG_IN = "https://crcn.clubautomation.com"
     PAC_LOG_OUT = "/user/logout"
+    NO_COURTS_MSG = "No available courts found"
     RES_SUMMARY = "Reservation Summary"
 
     def __init__(self, preferredCourtsArg: str, preferredTimesArg: str,
@@ -57,6 +58,7 @@ class PacControl(AbstractContextManager["PacControl"]):
         self.loggedIn = False
         self.reservationStarted = False
         self.found: CourtAndTime | None = None
+        self.retryLater = False
         self.playerItr: Iterator[User] | None = None
         try:
             self.preferredCourts = Courts.load(self.parmFile(preferredCourtsArg))
@@ -82,7 +84,7 @@ class PacControl(AbstractContextManager["PacControl"]):
                     f"starting at {self.found.courtTime.strWithDate(self.requestDate)}.")
         else:
 
-            return "No available courts found"
+            return PacControl.NO_COURTS_MSG
     # end getFoundSummary()
 
     @staticmethod
@@ -143,14 +145,15 @@ class PacControl(AbstractContextManager["PacControl"]):
             raise PacException.fromXcp("Unable to log-out via " + loUrl, e) from e
     # end logOut()
 
-    def navigateToSchedule(self, reserveLink: WebElement) -> bool:
+    def navigateToSchedule(self, reserveLink: WebElement) -> None:
         ifXcptionMsg = "Unable to select home page link to reserve a court"
         try:
             reserveLink.click()
 
             ifXcptionMsg = "Timed out waiting to display court schedule"
             schDate: str = WebDriverWait(self.webDriver, 15).until(
-                visibility_of_element_located((By.CSS_SELECTOR, "input#date"))).get_attribute("value")
+                visibility_of_element_located(
+                    (By.CSS_SELECTOR, "input#date"))).get_attribute("value")
             diff = self.requestDate - datetime.strptime(schDate, "%m/%d/%Y").date()
 
             if diff:
@@ -165,13 +168,11 @@ class PacControl(AbstractContextManager["PacControl"]):
             ifXcptionMsg = "Unable to start reserving a court"
             self.webDriver.execute_script("arguments[0].click();", reserveLink)
             self.reservationStarted = True
-
-            return True
         except WebDriverException as e:
             raise PacException.fromXcp(ifXcptionMsg, e) from e
     # end navigateToSchedule(WebElement)
 
-    def addPlayers(self) -> bool:
+    def addPlayers(self) -> None:
         addNameLocator = By.CSS_SELECTOR, "input#fakeUserName"
         ifXcptionMsg = ""
         try:
@@ -193,8 +194,6 @@ class PacControl(AbstractContextManager["PacControl"]):
 
             ifXcptionMsg = "Timed out waiting for schedule to redisplay"
             WebDriverWait(self.webDriver, 15).until(element_to_be_clickable(addNameLocator))
-
-            return True
         except WebDriverException as e:
             raise PacException.fromXcp(ifXcptionMsg, e) from e
     # end addPlayers()
@@ -212,7 +211,7 @@ class PacControl(AbstractContextManager["PacControl"]):
         return "notenabled" not in schBlock.get_attribute("class")
     # end blockAvailable(Court, str)
 
-    def findFirstAvailableCourt(self) -> CourtAndTime | None:
+    def findFirstAvailableCourt(self) -> CourtAndTime:
         for courtTime in self.preferredTimes.timesInPreferredOrder:
             timeRows = courtTime.getTimeRows()
 
@@ -223,29 +222,28 @@ class PacControl(AbstractContextManager["PacControl"]):
                     return CourtAndTime(court, courtTime)
             # end for
         # end for
+
+        raise PacException(PacControl.NO_COURTS_MSG)
     # end findFirstAvailableCourt()
 
-    def errorWindowPresent(self) -> bool:
+    def checkForErrorWindow(self) -> None:
         """Look for an error window;
             can be caused by looking too early on a future day
             and by looking earlier than run time on run day"""
         try:
             errorWindow: WebElement = WebDriverWait(self.webDriver, 2.5).until(
-                visibility_of_element_located((By.CSS_SELECTOR,
-                                               "div#confirm-user-popup, div#alert-dialog-1")))
-            print(f"Encountered error: {errorWindow.text}")
-
-            return True
+                visibility_of_element_located(
+                    (By.CSS_SELECTOR, "div#confirm-user-popup, div#alert-dialog-1")))
+            raise PacException(f"Encountered error: {errorWindow.text}")
         except TimeoutException:
             # no error window - this is good
-            return False
-    # end errorWindowPresent()
+            pass
+    # end checkForErrorWindow()
 
-    def selectAvailableCourt(self) -> bool:
+    def selectAvailableCourt(self) -> None:
         ifXcptionMsg = "Unable to find court time block"
         try:
-            if not (fac := self.findFirstAvailableCourt()):
-                return False
+            fac = self.findFirstAvailableCourt()
 
             ifXcptionMsg = "Unable to select court time block"
             for timeRow in fac.courtTime.getTimeRows():
@@ -255,12 +253,13 @@ class PacControl(AbstractContextManager["PacControl"]):
             self.webDriver.find_element(By.LINK_TEXT, PacControl.RES_SUMMARY).click()
 
             ifXcptionMsg = "Unable to verify reservation is good"
-            if allGood := not self.errorWindowPresent():
-                self.found = fac
-
-            return allGood
+            self.checkForErrorWindow()
+            self.found = fac
         except UnexpectedAlertPresentException as e:
-            print(e.msg)
+            # this can be caused by looking too many days in the future
+            self.retryLater = True
+
+            raise PacException(e.alert_text) from e
         except WebDriverException as e:
             raise PacException.fromXcp(ifXcptionMsg, e) from e
     # end selectAvailableCourt()
@@ -300,17 +299,16 @@ class PacControl(AbstractContextManager["PacControl"]):
 
 if __name__ == "__main__":
     try:
-        with PacControl("court6First", "time0930First", "Sat", "playWithBecky") as pacCtrl:
+        with PacControl("court6First", "time1000First", "Thu", "playWithBecky") as pacCtrl:
             print(pacCtrl.getReqSummary())
             pacCtrl.openBrowser()
 
-            if reserveLink := pacCtrl.logIn():
-                if pacCtrl.navigateToSchedule(reserveLink) \
-                        and pacCtrl.addPlayers():
-                    if pacCtrl.selectAvailableCourt():
-                        pass
-                print(pacCtrl.getFoundSummary())
-                sleep(12)
+            reserveLink = pacCtrl.logIn()
+            pacCtrl.navigateToSchedule(reserveLink)
+            pacCtrl.addPlayers()
+            pacCtrl.selectAvailableCourt()
+            print(pacCtrl.getFoundSummary())
+            sleep(12)
         # end with
     except PacException as e:
         print(e)
