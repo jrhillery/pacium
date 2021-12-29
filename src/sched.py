@@ -1,6 +1,7 @@
 
 from contextlib import AbstractContextManager
 from datetime import datetime
+from os import getcwd
 from time import sleep
 from types import TracebackType
 from typing import Iterator, NamedTuple, Type
@@ -30,11 +31,19 @@ class CourtAndTime(NamedTuple):
 
 # end class CourtAndTime
 
+
 class PacException(Exception):
     """Class for handled exceptions"""
-    pass
+
+    @classmethod
+    def fromXcp(cls, txtMsg: str, xcption: WebDriverException):
+        """Factory method for WebDriverExceptions"""
+
+        return cls(f"{txtMsg}, {xcption.__class__.__name__}: {xcption.msg}")
+    # end fromXcp(str, WebDriverException)
 
 # end class PacException
+
 
 class PacControl(AbstractContextManager["PacControl"]):
     """Controls Prosperity Athletic Club web pages"""
@@ -49,10 +58,13 @@ class PacControl(AbstractContextManager["PacControl"]):
         self.reservationStarted = False
         self.found: CourtAndTime | None = None
         self.playerItr: Iterator[User] | None = None
-        self.preferredCourts = Courts.load(self.parmFile(preferredCourtsArg))
-        self.preferredTimes = CourtTimes.load(self.parmFile(preferredTimesArg))
-        self.requestDate = CourtTimes.nextDateForDay(dayOfWeekArg)
-        self.players = Players.load(self.parmFile(playersArg))
+        try:
+            self.preferredCourts = Courts.load(self.parmFile(preferredCourtsArg))
+            self.preferredTimes = CourtTimes.load(self.parmFile(preferredTimesArg))
+            self.requestDate = CourtTimes.nextDateForDay(dayOfWeekArg)
+            self.players = Players.load(self.parmFile(playersArg))
+        except FileNotFoundError as e:
+            raise PacException(f"Unable to open file {e.filename} from {getcwd()}.") from e
     # end __init__(str, str, str, str)
 
     def getReqSummary(self) -> str:
@@ -79,14 +91,15 @@ class PacControl(AbstractContextManager["PacControl"]):
         return f"parmFiles/{fileNm}.json"
     # end parmFile(str)
 
-    def getDriver(self) -> WebDriver:
+    def openBrowser(self) -> None:
         """Get web driver and open browser"""
-        crOpts = webdriver.ChromeOptions()
-        crOpts.add_experimental_option("excludeSwitches", ["enable-logging"])
-        self.webDriver = webdriver.Chrome(options=crOpts)
-
-        return self.webDriver
-    # end getDriver()
+        try:
+            crOpts = webdriver.ChromeOptions()
+            crOpts.add_experimental_option("excludeSwitches", ["enable-logging"])
+            self.webDriver = webdriver.Chrome(options=crOpts)
+        except WebDriverException as e:
+            raise PacException.fromXcp("Unable to open browser", e) from e
+    # end openBrowser()
 
     def logIn(self) -> WebElement | None:
         """Log-in to Prosperity Athletic Club home page"""
@@ -96,7 +109,7 @@ class PacControl(AbstractContextManager["PacControl"]):
 
             ifXcptionMsg = "Unable to find log-in form"
             liForm: WebElement = self.webDriver.find_element(By.CSS_SELECTOR,
-                "form#caSignInLoginForm, form#signin_login_form")
+                                                             "form#caSignInLoginForm, form#signin_login_form")
             self.playerItr = iter(self.players.people)
 
             ifXcptionMsg = "Unable to enter first username"
@@ -117,7 +130,7 @@ class PacControl(AbstractContextManager["PacControl"]):
             # now on home page
             return link
         except WebDriverException as e:
-            reportError(ifXcptionMsg, e)
+            raise PacException.fromXcp(ifXcptionMsg, e) from e
     # end logIn()
 
     def logOut(self) -> None:
@@ -127,7 +140,7 @@ class PacControl(AbstractContextManager["PacControl"]):
             self.webDriver.get(loUrl)
             self.loggedIn = False
         except WebDriverException as e:
-            reportError("Unable to log-out via " + loUrl, e)
+            raise PacException.fromXcp("Unable to log-out via " + loUrl, e) from e
     # end logOut()
 
     def navigateToSchedule(self, reserveLink: WebElement) -> bool:
@@ -142,7 +155,8 @@ class PacControl(AbstractContextManager["PacControl"]):
 
             if diff:
                 ifXcptionMsg = f"Unable to select date {self.requestDate} on schedule in {diff}"
-                self.webDriver.execute_script(f"calendarAddDay($('date'), {diff.days}, 'mm/dd/yyyy');")
+                self.webDriver.execute_script(
+                    f"calendarAddDay($('date'), {diff.days}, 'mm/dd/yyyy');")
 
             ifXcptionMsg = "Timed out waiting to display selected date"
             reserveLink = WebDriverWait(self.webDriver, 15).until(
@@ -154,7 +168,7 @@ class PacControl(AbstractContextManager["PacControl"]):
 
             return True
         except WebDriverException as e:
-            reportError(ifXcptionMsg, e)
+            raise PacException.fromXcp(ifXcptionMsg, e) from e
     # end navigateToSchedule(WebElement)
 
     def addPlayers(self) -> bool:
@@ -182,13 +196,13 @@ class PacControl(AbstractContextManager["PacControl"]):
 
             return True
         except WebDriverException as e:
-            reportError(ifXcptionMsg, e)
+            raise PacException.fromXcp(ifXcptionMsg, e) from e
     # end addPlayers()
 
     def findSchBlock(self, court: Court, timeRow: str) -> WebElement:
 
         return self.webDriver.find_element(By.CSS_SELECTOR,
-            f"td#court_{court.tId}_row_{timeRow}")
+                                           f"td#court_{court.tId}_row_{timeRow}")
     # end findSchBlock(Court, str)
 
     def blockAvailable(self, court: Court, timeRow: str) -> bool:
@@ -218,7 +232,7 @@ class PacControl(AbstractContextManager["PacControl"]):
         try:
             errorWindow: WebElement = WebDriverWait(self.webDriver, 2.5).until(
                 visibility_of_element_located((By.CSS_SELECTOR,
-                    "div#confirm-user-popup, div#alert-dialog-1")))
+                                               "div#confirm-user-popup, div#alert-dialog-1")))
             print(f"Encountered error: {errorWindow.text}")
 
             return True
@@ -248,7 +262,7 @@ class PacControl(AbstractContextManager["PacControl"]):
         except UnexpectedAlertPresentException as e:
             print(e.msg)
         except WebDriverException as e:
-            reportError(ifXcptionMsg, e)
+            raise PacException.fromXcp(ifXcptionMsg, e) from e
     # end selectAvailableCourt()
 
     def cancelPendingReservation(self):
@@ -261,11 +275,11 @@ class PacControl(AbstractContextManager["PacControl"]):
                 invisibility_of_element_located((By.LINK_TEXT, PacControl.RES_SUMMARY)))
             self.reservationStarted = False
         except WebDriverException as e:
-            reportError(ifXcptionMsg, e)
+            raise PacException.fromXcp(ifXcptionMsg, e) from e
     # end cancelPendingReservation()
 
     def __exit__(self, exc_type: Type[BaseException] | None, exc_value: BaseException | None,
-            traceback: TracebackType | None) -> bool | None:
+                 traceback: TracebackType | None) -> bool | None:
 
         if self.reservationStarted:
             self.cancelPendingReservation()
@@ -278,26 +292,17 @@ class PacControl(AbstractContextManager["PacControl"]):
             self.webDriver.quit()
             self.webDriver = None
 
-        if isinstance(exc_value, PacException):
-            print(exc_value)
-
-            return True
-        else:
-            return super().__exit__(exc_type, exc_value, traceback)
+        return super().__exit__(exc_type, exc_value, traceback)
     # end __exit__(Type[BaseException] | None, BaseException | None, TracebackType | None)
 
 # end class PacControl
 
-def reportError(txtMsg: str, xcption: Exception):
-    print(txtMsg + ",", xcption.__class__.__name__ + ":", xcption)
-
-# end reportError(str, Exception)
 
 if __name__ == "__main__":
     try:
-        with PacControl("court6First", "time1330First", "Fri", "playWithBecky") as pacCtrl:
+        with PacControl("court6First", "time0930First", "Sat", "playWithBecky") as pacCtrl:
             print(pacCtrl.getReqSummary())
-            pacCtrl.getDriver()
+            pacCtrl.openBrowser()
 
             if reserveLink := pacCtrl.logIn():
                 if pacCtrl.navigateToSchedule(reserveLink) \
@@ -307,10 +312,5 @@ if __name__ == "__main__":
                 print(pacCtrl.getFoundSummary())
                 sleep(12)
         # end with
-    except FileNotFoundError as e:
-        print(f"Unable to open file {e.filename}.")
-    except WebDriverException as e:
-        reportError("Unable to open browser", e)
-    except Exception as e:
-        reportError("Failed", e)
-        raise e
+    except PacException as e:
+        print(e)
