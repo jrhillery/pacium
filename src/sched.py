@@ -67,6 +67,8 @@ class PacControl(AbstractContextManager["PacControl"]):
             self.players = Players.load(self.parmFile(playersArg))
         except FileNotFoundError as e:
             raise PacException(f"Unable to open file {e.filename} from {getcwd()}.") from e
+        except ValueError as e:
+            raise PacException(", ".join(e.args)) from e
     # end __init__(str, str, str, str)
 
     def getReqSummary(self) -> str:

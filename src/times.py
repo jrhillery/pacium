@@ -36,6 +36,7 @@ class CourtTime(NamedTuple):
 
 # end class CourtTime
 
+
 class CourtTimes(NamedTuple):
     """Represents our court times in our preferred order"""
     timesInPreferredOrder: list[CourtTime]
@@ -52,7 +53,7 @@ class CourtTimes(NamedTuple):
         with open(fileNm, "w", encoding="utf-8") as file:
             dct = {"timesInPreferredOrder":
                    [{"startTime": ct.startTime.isoformat(timespec="minutes"),
-                     "duration" : ct.duration} for ct in self.timesInPreferredOrder]}
+                     "duration": ct.duration} for ct in self.timesInPreferredOrder]}
             json.dump(dct, file, ensure_ascii=False, indent=3)
     # end save(str)
 
@@ -61,8 +62,9 @@ class CourtTimes(NamedTuple):
         """Return the next date with the specified day of week abbreviation"""
         try:
             dayOfWeekInt = strptime(dayOfWeekArg, "%a").tm_wday
-        except ValueError:
-            raise ValueError(f"Invalid day of week abbreviation [{dayOfWeekArg}].")
+        except ValueError as e:
+            raise ValueError(
+                f"Invalid day of week abbreviation [{dayOfWeekArg}]", *e.args) from e
 
         nd = date.today()
         daysFromToday = (dayOfWeekInt - nd.weekday()) % 7
@@ -74,6 +76,7 @@ class CourtTimes(NamedTuple):
     # end nextDateForDay(str)
 
 # end class CourtTimes
+
 
 def decodeCourtTimes(jsonDict: dict):
     """Decodes CourtTimes JSON"""
@@ -89,10 +92,11 @@ def decodeCourtTimes(jsonDict: dict):
         return jsonDict
 # end decodeCourtTimes(dict)
 
+
 if __name__ == "__main__":
-    data = CourtTimes([CourtTime(time(8,30), 90),
-                       CourtTime(time(9,0), 90),
-                       CourtTime(time(8,0), 90)])
+    data = CourtTimes([CourtTime(time(8, 30), 90),
+                       CourtTime(time(9, 0), 90),
+                       CourtTime(time(8, 0), 90)])
     data.save("data.json")
 
     readback = CourtTimes.load("data.json")
