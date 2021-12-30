@@ -10,6 +10,7 @@ class Court(NamedTuple):
 
 # end class Court
 
+
 class Courts(NamedTuple):
     """Represents our tennis courts"""
     courtsInPreferredOrder: list[Court]
@@ -31,6 +32,7 @@ class Courts(NamedTuple):
 
 # end class Courts
 
+
 def decodeCourts(jsonDict: dict):
     """Decodes Courts JSON"""
     if all(fld in jsonDict for fld in Court._fields):
@@ -43,6 +45,7 @@ def decodeCourts(jsonDict: dict):
 
         return jsonDict
 # end decodeCourts(dict)
+
 
 if __name__ == "__main__":
     data = Courts([Court("Court 1", "178"),

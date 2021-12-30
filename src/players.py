@@ -10,6 +10,7 @@ class User(NamedTuple):
 
 # end class User
 
+
 class Players(NamedTuple):
     """Represents our players"""
     people: list[User]
@@ -35,6 +36,7 @@ class Players(NamedTuple):
 
 # end class Players
 
+
 def decodePlayers(jsonDict: dict):
     """Decodes Players JSON"""
     if all(fld in jsonDict for fld in User._fields):
@@ -47,6 +49,7 @@ def decodePlayers(jsonDict: dict):
 
         return jsonDict
 # end decodePlayers(dict)
+
 
 if __name__ == "__main__":
     data = Players([User("Diane", "dianehilleríe"),
