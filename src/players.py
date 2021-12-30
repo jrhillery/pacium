@@ -57,7 +57,7 @@ if __name__ == "__main__":
                     User("Peño", "mediterranián")], "tenis1")
     data.save("data.json")
 
-    readback = Players.load("data.json")
+    readBack = Players.load("data.json")
 
-    print(type(readback), readback)
+    print(type(readBack), readBack)
 # end if

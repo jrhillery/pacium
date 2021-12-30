@@ -112,8 +112,8 @@ class PacControl(AbstractContextManager["PacControl"]):
             self.webDriver.get(PacControl.PAC_LOG_IN)
 
             ifXcptionMsg = "Unable to find log-in form"
-            liForm: WebElement = self.webDriver.find_element(By.CSS_SELECTOR,
-                                                             "form#caSignInLoginForm, form#signin_login_form")
+            liForm: WebElement = self.webDriver.find_element(
+                By.CSS_SELECTOR, "form#caSignInLoginForm, form#signin_login_form")
             self.playerItr = iter(self.players.people)
 
             ifXcptionMsg = "Unable to enter first username"
@@ -287,7 +287,7 @@ class PacControl(AbstractContextManager["PacControl"]):
 
         if self.loggedIn:
             self.logOut()
-        sleep(3)
+        sleep(2)
 
         if self.webDriver:
             self.webDriver.quit()
@@ -301,16 +301,16 @@ class PacControl(AbstractContextManager["PacControl"]):
 
 if __name__ == "__main__":
     try:
-        with PacControl("court6First", "time1000First", "Thu", "playWithBecky") as pacCtrl:
+        with PacControl("court6First", "time1000First", "Sat", "playWithBecky") as pacCtrl:
             print(pacCtrl.getReqSummary())
             pacCtrl.openBrowser()
 
-            reserveLink = pacCtrl.logIn()
-            pacCtrl.navigateToSchedule(reserveLink)
+            resLink = pacCtrl.logIn()
+            pacCtrl.navigateToSchedule(resLink)
             pacCtrl.addPlayers()
             pacCtrl.selectAvailableCourt()
             print(pacCtrl.getFoundSummary())
-            sleep(12)
+            sleep(10)
         # end with
-    except PacException as e:
-        print(e)
+    except PacException as xcpt:
+        print(xcpt)

@@ -99,10 +99,10 @@ if __name__ == "__main__":
                        CourtTime(time(8, 0), 90)])
     data.save("data.json")
 
-    readback = CourtTimes.load("data.json")
+    readBack = CourtTimes.load("data.json")
 
-    print(type(readback), readback)
+    print(type(readBack), readBack)
 
-    for ct in readback.timesInPreferredOrder:
-        print("time rows", ct.getTimeRows())
+    for cTime in readBack.timesInPreferredOrder:
+        print("time rows", cTime.getTimeRows())
 # end if

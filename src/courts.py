@@ -53,7 +53,7 @@ if __name__ == "__main__":
                    Court("Court 12", "189")])
     data.save("data.json")
 
-    readback = Courts.load("data.json")
+    readBack = Courts.load("data.json")
 
-    print(type(readback), readback)
+    print(type(readBack), readBack)
 # end if
