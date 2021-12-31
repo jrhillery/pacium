@@ -50,7 +50,7 @@ class PacControl(AbstractContextManager["PacControl"]):
     PAC_LOG_IN = "https://crcn.clubautomation.com"
     PAC_LOG_OUT = "/user/logout"
     NO_COURTS_MSG = "No available courts found"
-    RES_SUMMARY = "Reservation Summary"
+    RES_SUMMARY_LOCATOR = By.LINK_TEXT, "Reservation Summary"
 
     def __init__(self, preferredCourtsArg: str, preferredTimesArg: str,
                  dayOfWeekArg: str, playersArg: str) -> None:
@@ -252,7 +252,7 @@ class PacControl(AbstractContextManager["PacControl"]):
                 self.findSchBlock(fac.court, timeRow).click()
 
             ifXcptionMsg = "Unable to view reservation summary"
-            self.webDriver.find_element(By.LINK_TEXT, PacControl.RES_SUMMARY).click()
+            self.webDriver.find_element(*PacControl.RES_SUMMARY_LOCATOR).click()
 
             ifXcptionMsg = "Unable to verify reservation is good"
             self.checkForErrorWindow()
@@ -273,7 +273,7 @@ class PacControl(AbstractContextManager["PacControl"]):
 
             ifXcptionMsg = "Timed out waiting for cancel"
             WebDriverWait(self.webDriver, 15).until(
-                invisibility_of_element_located((By.LINK_TEXT, PacControl.RES_SUMMARY)))
+                invisibility_of_element_located(PacControl.RES_SUMMARY_LOCATOR))
             self.reservationStarted = False
         except WebDriverException as e:
             raise PacException.fromXcp(ifXcptionMsg, e) from e
