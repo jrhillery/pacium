@@ -170,43 +170,53 @@ class PacControl(AbstractContextManager["PacControl"]):
             raise PacException.fromXcp(ifXcptionMsg, e) from e
     # end navigateToSchedule(WebElement)
 
+    def waitToAddName(self) -> WebElement:
+        return WebDriverWait(self.webDriver, 15).until(
+            element_to_be_clickable(PacControl.ADD_NAME_LOCATOR))
+    # end waitToAddName()
+
     def addPlayers(self) -> None:
         ifXcptionMsg = ""
         try:
             while player := next(self.playerItr, None):
                 ifXcptionMsg = "Timed out waiting for player entry field"
-                inputFld: WebElement = WebDriverWait(self.webDriver, 15).until(
-                    element_to_be_clickable(PacControl.ADD_NAME_LOCATOR))
-                retrys = 0
-
-                while True:
-                    ifXcptionMsg = "Unable to key-in players for reservation"
-                    inputFld.clear()
-                    inputFld.send_keys(player.username)
-
-                    try:
-                        ifXcptionMsg = f"Timed out waiting for player {player.username} in list"
-                        playerLnk: WebElement = WebDriverWait(self.webDriver, 15).until(
-                            element_to_be_clickable((By.LINK_TEXT, player.username)))
-
-                        ifXcptionMsg = f"Unable to add player {player.username} to reservation"
-                        playerLnk.click()
-
-                        # found the player, stop retrying
-                        break
-                    except TimeoutException as e:
-                        if (retrys := retrys + 1) == 3:
-                            raise e
-                        print(f"Try again to add player {player.username} to reservation")
-                # end while
+                inputFld = self.waitToAddName()
+                self.addPlayer(inputFld, player.username)
             # end while
 
             ifXcptionMsg = "Timed out waiting for schedule to redisplay"
-            WebDriverWait(self.webDriver, 15).until(
-                element_to_be_clickable(PacControl.ADD_NAME_LOCATOR))
+            self.waitToAddName()
         except WebDriverException as e:
             raise PacException.fromXcp(ifXcptionMsg, e) from e
     # end addPlayers()
+
+    def addPlayer(self, inputFld: WebElement, playerName: str) -> None:
+        retrys = 0
+        ifXcptionMsg = ""
+        try:
+            while True:
+                ifXcptionMsg = "Unable to key-in players for reservation"
+                inputFld.clear()
+                inputFld.send_keys(playerName)
+
+                try:
+                    ifXcptionMsg = f"Timed out waiting for player {playerName} in list"
+                    playerLnk: WebElement = WebDriverWait(self.webDriver, 15).until(
+                        element_to_be_clickable((By.LINK_TEXT, playerName)))
+
+                    ifXcptionMsg = f"Unable to add player {playerName} to reservation"
+                    playerLnk.click()
+
+                    # found the player, stop retrying
+                    break
+                except TimeoutException as e:
+                    if (retrys := retrys + 1) == 3:
+                        raise e
+                    print(f"Try again to add player {playerName} to reservation")
+            # end while
+        except WebDriverException as e:
+            raise PacException.fromXcp(ifXcptionMsg, e) from e
+    # end addPlayer(inputFld, playerName)
 
     def findSchBlock(self, court: Court, timeRow: str) -> WebElement:
         return self.webDriver.find_element(By.CSS_SELECTOR,
