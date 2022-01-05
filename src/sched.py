@@ -91,12 +91,14 @@ class PacControl(AbstractContextManager["PacControl"]):
         return f"parmFiles/{fileNm}.json"
     # end parmFile(str)
 
-    def openBrowser(self) -> None:
+    def openBrowser(self) -> WebDriver:
         """Get web driver and open browser"""
         try:
             crOpts = webdriver.ChromeOptions()
             crOpts.add_experimental_option("excludeSwitches", ["enable-logging"])
             self.webDriver = webdriver.Chrome(options=crOpts)
+
+            return self.webDriver
         except WebDriverException as e:
             raise PacException.fromXcp("open browser", e) from e
     # end openBrowser()
@@ -302,18 +304,14 @@ class PacControl(AbstractContextManager["PacControl"]):
     def __exit__(self, exc_type: Type[BaseException] | None, exc_value: BaseException | None,
                  traceback: TracebackType | None) -> bool | None:
 
-        if self.reservationStarted:
-            self.cancelPendingReservation()
+        try:
+            if self.reservationStarted:
+                self.cancelPendingReservation()
+        finally:
+            if self.loggedIn:
+                self.logOut()
 
-        if self.loggedIn:
-            self.logOut()
-        sleep(2)
-
-        if self.webDriver:
-            self.webDriver.quit()
-            self.webDriver = None
-
-        return super().__exit__(exc_type, exc_value, traceback)
+        return None
     # end __exit__(Type[BaseException] | None, BaseException | None, TracebackType | None)
 
 # end class PacControl
@@ -321,16 +319,16 @@ class PacControl(AbstractContextManager["PacControl"]):
 
 if __name__ == "__main__":
     try:
-        with PacControl("court6First", "time1000First", "Fri", "playWithRobin") as pacCtrl:
-            print(pacCtrl.getReqSummary())
-            pacCtrl.openBrowser()
+        pacCtrl = PacControl("court6First", "time1000First", "Fri", "playWithRobin")
+        print(pacCtrl.getReqSummary())
 
+        with pacCtrl.openBrowser(), pacCtrl:
             resLink = pacCtrl.logIn()
             pacCtrl.navigateToSchedule(resLink)
             pacCtrl.addPlayers()
             pacCtrl.selectAvailableCourt()
             print(pacCtrl.getFoundSummary())
-            sleep(10)
+            sleep(9)
         # end with
     except PacException as xcpt:
         print(xcpt)
