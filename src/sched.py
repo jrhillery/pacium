@@ -49,8 +49,15 @@ class PacControl(AbstractContextManager["PacControl"]):
     PAC_LOG_IN = "https://crcn.clubautomation.com"
     PAC_LOG_OUT = "/user/logout"
     NO_COURTS_MSG = "No available courts found"
+    LOGIN_FORM_LOCATOR = By.CSS_SELECTOR, "form#caSignInLoginForm, form#signin_login_form"
+    USERNAME_LOCATOR = By.NAME, "login"
+    RESERVE_COURT_LOCATOR_A = By.LINK_TEXT, "Reserve a Court"
+    SCHED_DATE_LOCATOR = By.CSS_SELECTOR, "input#date"
+    RESERVE_COURT_LOCATOR_B = By.CSS_SELECTOR, "a#reserve-permanent-member-button"
     ADD_NAME_LOCATOR = By.CSS_SELECTOR, "input#fakeUserName"
+    ERROR_WIN_LOCATOR = By.CSS_SELECTOR, "div#confirm-user-popup, div#alert-dialog-1"
     RES_SUMMARY_LOCATOR = By.LINK_TEXT, "Reservation Summary"
+    RES_CANCEL_LOCATOR = By.LINK_TEXT, "Cancel Reservation"
 
     def __init__(self, preferredCourtsArg: str, preferredTimesArg: str,
                  dayOfWeekArg: str, playersArg: str) -> None:
@@ -110,12 +117,11 @@ class PacControl(AbstractContextManager["PacControl"]):
             self.webDriver.get(PacControl.PAC_LOG_IN)
 
             ifXcptionMsg = "find log-in form"
-            liForm: WebElement = self.webDriver.find_element(
-                By.CSS_SELECTOR, "form#caSignInLoginForm, form#signin_login_form")
+            liForm = self.webDriver.find_element(*PacControl.LOGIN_FORM_LOCATOR)
             self.playerItr = iter(self.players.people)
 
             ifXcptionMsg = "enter first username"
-            liForm.find_element(By.NAME, "login").send_keys(
+            liForm.find_element(*PacControl.USERNAME_LOCATOR).send_keys(
                 next(self.playerItr).username, Keys.TAB)
 
             ifXcptionMsg = "enter password"
@@ -126,7 +132,7 @@ class PacControl(AbstractContextManager["PacControl"]):
 
             ifXcptionMsg = "complete log-in"
             link = WebDriverWait(self.webDriver, 15).until(
-                element_to_be_clickable((By.LINK_TEXT, "Reserve a Court")),
+                element_to_be_clickable(PacControl.RESERVE_COURT_LOCATOR_A),
                 "Timed out waiting to log-in")
             self.loggedIn = True
 
@@ -153,7 +159,7 @@ class PacControl(AbstractContextManager["PacControl"]):
 
             ifXcptionMsg = "start reserving a court"
             schDate: str = WebDriverWait(self.webDriver, 15).until(
-                visibility_of_element_located((By.CSS_SELECTOR, "input#date")),
+                visibility_of_element_located(PacControl.SCHED_DATE_LOCATOR),
                 "Timed out waiting to display schedule date").get_attribute("value")
             diff = self.requestDate - datetime.strptime(schDate, "%m/%d/%Y").date()
 
@@ -163,8 +169,8 @@ class PacControl(AbstractContextManager["PacControl"]):
                     f"calendarAddDay($('date'), {diff.days}, 'mm/dd/yyyy');")
 
             ifXcptionMsg = "display new schedule date"
-            reserveLink = WebDriverWait(self.webDriver, 15).until(
-                element_to_be_clickable((By.CSS_SELECTOR, "a#reserve-permanent-member-button")),
+            reserveLink: WebElement = WebDriverWait(self.webDriver, 15).until(
+                element_to_be_clickable(PacControl.RESERVE_COURT_LOCATOR_B),
                 "Timed out waiting to display selected date")
 
             ifXcptionMsg = "start reserving a court"
@@ -220,11 +226,11 @@ class PacControl(AbstractContextManager["PacControl"]):
             # end while
         except WebDriverException as e:
             raise PacException.fromXcp(ifXcptionMsg, e) from e
-    # end addPlayer(inputFld, playerName)
+    # end addPlayer(WebElement, str)
 
     def findSchBlock(self, court: Court, timeRow: str) -> WebElement:
-        return self.webDriver.find_element(By.CSS_SELECTOR,
-                                           f"td#court_{court.tId}_row_{timeRow}")
+        return self.webDriver.find_element(
+            By.CSS_SELECTOR, f"td#court_{court.tId}_row_{timeRow}")
     # end findSchBlock(Court, str)
 
     def blockAvailable(self, court: Court, timeRow: str) -> bool:
@@ -255,8 +261,8 @@ class PacControl(AbstractContextManager["PacControl"]):
             and by looking earlier than run time on run day"""
         try:
             errorWindow: WebElement = WebDriverWait(self.webDriver, 2.5).until(
-                visibility_of_element_located(
-                    (By.CSS_SELECTOR, "div#confirm-user-popup, div#alert-dialog-1")))
+                visibility_of_element_located(PacControl.ERROR_WIN_LOCATOR))
+
             raise PacException(f"Encountered error: {errorWindow.text}")
         except TimeoutException:
             # no error window - this is good
@@ -290,7 +296,7 @@ class PacControl(AbstractContextManager["PacControl"]):
     def cancelPendingReservation(self):
         ifXcptionMsg = "cancel pending reservation"
         try:
-            self.webDriver.find_element(By.LINK_TEXT, "Cancel Reservation").click()
+            self.webDriver.find_element(*PacControl.RES_CANCEL_LOCATOR).click()
 
             ifXcptionMsg = "complete cancel"
             WebDriverWait(self.webDriver, 15).until(
@@ -319,7 +325,7 @@ class PacControl(AbstractContextManager["PacControl"]):
 
 if __name__ == "__main__":
     try:
-        pacCtrl = PacControl("court6First", "time1000First", "Fri", "playWithRobin")
+        pacCtrl = PacControl("court6First", "time1330First", "Fri", "playWithRobin")
         print(pacCtrl.getReqSummary())
 
         with pacCtrl.openBrowser(), pacCtrl:
