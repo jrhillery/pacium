@@ -149,6 +149,8 @@ class PacControl(AbstractContextManager["PacControl"]):
         try:
             self.webDriver.get(loUrl)
             self.loggedIn = False
+            # give us a chance to see we are logged out
+            sleep(0.75)
         except WebDriverException as e:
             raise PacException.fromXcp("log-out via " + loUrl, e) from e
     # end logOut()
@@ -304,6 +306,8 @@ class PacControl(AbstractContextManager["PacControl"]):
                 invisibility_of_element_located(PacControl.RES_SUMMARY_LOCATOR),
                 "Timed out waiting for cancel")
             self.reservationStarted = False
+            # give us a chance to see reservation cancelled
+            sleep(0.25)
         except WebDriverException as e:
             raise PacException.fromXcp(ifXcptionMsg, e) from e
     # end cancelPendingReservation()
