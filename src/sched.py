@@ -53,6 +53,7 @@ class PacControl(AbstractContextManager["PacControl"]):
     USERNAME_LOCATOR = By.NAME, "login"
     RESERVE_COURT_LOCATOR_A = By.LINK_TEXT, "Reserve a Court"
     SCHED_DATE_LOCATOR = By.CSS_SELECTOR, "input#date"
+    LOADING_SPLASH_LOCATOR = By.CSS_SELECTOR, "div#ui-id-1"
     RESERVE_COURT_LOCATOR_B = By.CSS_SELECTOR, "a#reserve-permanent-member-button"
     ADD_NAME_LOCATOR = By.CSS_SELECTOR, "input#fakeUserName"
     ERROR_WIN_LOCATOR = By.CSS_SELECTOR, "div#confirm-user-popup, div#alert-dialog-1"
@@ -169,12 +170,12 @@ class PacControl(AbstractContextManager["PacControl"]):
                     f"calendarAddDay($('date'), {diff.days}, 'mm/dd/yyyy');")
 
             ifXcptionMsg = "display new schedule date"
-            reserveLink: WebElement = WebDriverWait(self.webDriver, 15).until(
-                element_to_be_clickable(PacControl.RESERVE_COURT_LOCATOR_B),
+            WebDriverWait(self.webDriver, 15).until(
+                invisibility_of_element_located(PacControl.LOADING_SPLASH_LOCATOR),
                 "Timed out waiting to display selected date")
 
             ifXcptionMsg = "start reserving a court"
-            self.webDriver.execute_script("arguments[0].click();", reserveLink)
+            self.webDriver.find_element(*PacControl.RESERVE_COURT_LOCATOR_B).click()
             self.reservationStarted = True
         except WebDriverException as e:
             raise PacException.fromXcp(ifXcptionMsg, e) from e
@@ -325,7 +326,7 @@ class PacControl(AbstractContextManager["PacControl"]):
 
 if __name__ == "__main__":
     try:
-        pacCtrl = PacControl("court6First", "time1330First", "Fri", "playWithRobin")
+        pacCtrl = PacControl("court6First", "time1330First", "Tue", "playWithRobin")
         print(pacCtrl.getReqSummary())
 
         with pacCtrl.openBrowser(), pacCtrl:
