@@ -154,15 +154,19 @@ class PacControl(AbstractContextManager["PacControl"]):
             raise PacException.fromXcp("log-out via " + loUrl, e) from e
     # end logOut()
 
+    def waitOutLoadingSplash(self, doingMsg: str) -> None:
+        WebDriverWait(self.webDriver, 15).until(
+            invisibility_of_element_located(PacControl.LOADING_SPLASH_LOCATOR),
+            "Timed out waiting to " + doingMsg)
+    # end waitOutLoadingSplash(str)
+
     def navigateToSchedule(self, reserveLink: WebElement) -> None:
         doingMsg = "select home page link to reserve a court"
         try:
             reserveLink.click()
 
             doingMsg = "start reserving a court"
-            WebDriverWait(self.webDriver, 15).until(
-                invisibility_of_element_located(PacControl.LOADING_SPLASH_LOCATOR),
-                "Timed out waiting to " + doingMsg)
+            self.waitOutLoadingSplash(doingMsg)
 
             doingMsg = "read initial schedule date"
             schDate = self.webDriver.find_element(*PacControl.SCHED_DATE_LOCATOR) \
@@ -175,17 +179,13 @@ class PacControl(AbstractContextManager["PacControl"]):
                     f"calendarAddDay($('date'), {diff.days}, 'mm/dd/yyyy');")
 
             doingMsg = "display selected schedule date"
-            WebDriverWait(self.webDriver, 15).until(
-                invisibility_of_element_located(PacControl.LOADING_SPLASH_LOCATOR),
-                "Timed out waiting to " + doingMsg)
+            self.waitOutLoadingSplash(doingMsg)
 
             doingMsg = "start reserving a court"
             self.webDriver.find_element(*PacControl.RESERVE_COURT_LOCATOR_B).click()
 
             doingMsg = "open new reservation"
-            WebDriverWait(self.webDriver, 15).until(
-                invisibility_of_element_located(PacControl.LOADING_SPLASH_LOCATOR),
-                "Timed out waiting to " + doingMsg)
+            self.waitOutLoadingSplash(doingMsg)
             self.reservationStarted = True
         except WebDriverException as e:
             raise PacException.fromXcp(doingMsg, e) from e
@@ -288,9 +288,7 @@ class PacControl(AbstractContextManager["PacControl"]):
             self.webDriver.find_element(*PacControl.RES_SUMMARY_LOCATOR).click()
 
             doingMsg = "view reservation summary"
-            WebDriverWait(self.webDriver, 15).until(
-                invisibility_of_element_located(PacControl.LOADING_SPLASH_LOCATOR),
-                "Timed out waiting to " + doingMsg)
+            self.waitOutLoadingSplash(doingMsg)
 
             doingMsg = "verify reservation is good"
             self.checkForErrorWindow()
@@ -310,9 +308,7 @@ class PacControl(AbstractContextManager["PacControl"]):
             self.webDriver.find_element(*PacControl.RES_CANCEL_LOCATOR).click()
 
             doingMsg = "complete cancel"
-            WebDriverWait(self.webDriver, 15).until(
-                invisibility_of_element_located(PacControl.LOADING_SPLASH_LOCATOR),
-                "Timed out waiting to " + doingMsg)
+            self.waitOutLoadingSplash(doingMsg)
             self.reservationStarted = False
             # give us a chance to see reservation cancelled
             sleep(0.25)
