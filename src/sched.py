@@ -52,8 +52,8 @@ class PacControl(AbstractContextManager["PacControl"]):
     LOGIN_FORM_LOCATOR = By.CSS_SELECTOR, "form#caSignInLoginForm, form#signin_login_form"
     USERNAME_LOCATOR = By.NAME, "login"
     RESERVE_COURT_LOCATOR_A = By.LINK_TEXT, "Reserve a Court"
-    SCHED_DATE_LOCATOR = By.CSS_SELECTOR, "input#date"
     LOADING_SPLASH_LOCATOR = By.CSS_SELECTOR, "div#ui-id-1"
+    SCHED_DATE_LOCATOR = By.CSS_SELECTOR, "input#date"
     RESERVE_COURT_LOCATOR_B = By.CSS_SELECTOR, "a#reserve-permanent-member-button"
     ADD_NAME_LOCATOR = By.CSS_SELECTOR, "input#fakeUserName"
     ERROR_WIN_LOCATOR = By.CSS_SELECTOR, "div#confirm-user-popup, div#alert-dialog-1"
@@ -156,58 +156,61 @@ class PacControl(AbstractContextManager["PacControl"]):
     # end logOut()
 
     def navigateToSchedule(self, reserveLink: WebElement) -> None:
-        ifXcptionMsg = "select home page link to reserve a court"
+        doingMsg = "select home page link to reserve a court"
         try:
             reserveLink.click()
 
-            ifXcptionMsg = "start reserving a court"
-            schDate: str = WebDriverWait(self.webDriver, 15).until(
-                visibility_of_element_located(PacControl.SCHED_DATE_LOCATOR),
-                "Timed out waiting to display schedule date").get_attribute("value")
+            doingMsg = "start reserving a court"
+            WebDriverWait(self.webDriver, 15).until(
+                invisibility_of_element_located(PacControl.LOADING_SPLASH_LOCATOR),
+                "Timed out waiting to " + doingMsg)
+
+            doingMsg = "read initial schedule date"
+            schDate = self.webDriver.find_element(*PacControl.SCHED_DATE_LOCATOR) \
+                .get_attribute("value")
             diff = self.requestDate - datetime.strptime(schDate, "%m/%d/%Y").date()
 
             if diff:
-                ifXcptionMsg = f"select date {self.requestDate} on schedule in {diff}"
+                doingMsg = f"select date {self.requestDate} on schedule in {diff}"
                 self.webDriver.execute_script(
                     f"calendarAddDay($('date'), {diff.days}, 'mm/dd/yyyy');")
 
-            ifXcptionMsg = "display new schedule date"
+            doingMsg = "display selected schedule date"
             WebDriverWait(self.webDriver, 15).until(
                 invisibility_of_element_located(PacControl.LOADING_SPLASH_LOCATOR),
-                "Timed out waiting to display selected date")
+                "Timed out waiting to " + doingMsg)
 
-            ifXcptionMsg = "start reserving a court"
+            doingMsg = "start reserving a court"
             self.webDriver.find_element(*PacControl.RESERVE_COURT_LOCATOR_B).click()
+
+            doingMsg = "open new reservation"
+            WebDriverWait(self.webDriver, 15).until(
+                invisibility_of_element_located(PacControl.LOADING_SPLASH_LOCATOR),
+                "Timed out waiting to " + doingMsg)
             self.reservationStarted = True
         except WebDriverException as e:
-            raise PacException.fromXcp(ifXcptionMsg, e) from e
+            raise PacException.fromXcp(doingMsg, e) from e
     # end navigateToSchedule(WebElement)
 
     def addPlayers(self) -> None:
-        ifXcptionMsg = ""
         try:
             while player := next(self.playerItr, None):
-                ifXcptionMsg = "find where to add another player"
-                inputFld = WebDriverWait(self.webDriver, 15).until(
+                self.addPlayer(player.username)
+                WebDriverWait(self.webDriver, 15).until(
                     element_to_be_clickable(PacControl.ADD_NAME_LOCATOR),
                     "Timed out waiting for player entry field")
-                self.addPlayer(inputFld, player.username)
             # end while
-
-            ifXcptionMsg = "finish adding players"
-            WebDriverWait(self.webDriver, 15).until(
-                element_to_be_clickable(PacControl.ADD_NAME_LOCATOR),
-                "Timed out waiting for schedule to redisplay")
         except WebDriverException as e:
-            raise PacException.fromXcp(ifXcptionMsg, e) from e
+            raise PacException.fromXcp("see updated player list", e) from e
     # end addPlayers()
 
-    def addPlayer(self, inputFld: WebElement, playerName: str) -> None:
+    def addPlayer(self, playerName: str) -> None:
         retrys = 0
         ifXcptionMsg = ""
         try:
             while True:
                 ifXcptionMsg = "key-in players for reservation"
+                inputFld = self.webDriver.find_element(*PacControl.ADD_NAME_LOCATOR)
                 inputFld.clear()
                 inputFld.send_keys(playerName)
 
@@ -229,7 +232,7 @@ class PacControl(AbstractContextManager["PacControl"]):
             # end while
         except WebDriverException as e:
             raise PacException.fromXcp(ifXcptionMsg, e) from e
-    # end addPlayer(WebElement, str)
+    # end addPlayer(str)
 
     def findSchBlock(self, court: Court, timeRow: str) -> WebElement:
         return self.webDriver.find_element(
@@ -303,7 +306,7 @@ class PacControl(AbstractContextManager["PacControl"]):
 
             ifXcptionMsg = "complete cancel"
             WebDriverWait(self.webDriver, 15).until(
-                invisibility_of_element_located(PacControl.RES_SUMMARY_LOCATOR),
+                invisibility_of_element_located(PacControl.LOADING_SPLASH_LOCATOR),
                 "Timed out waiting for cancel")
             self.reservationStarted = False
             # give us a chance to see reservation cancelled
@@ -330,7 +333,7 @@ class PacControl(AbstractContextManager["PacControl"]):
 
 if __name__ == "__main__":
     try:
-        pacCtrl = PacControl("court6First", "time1330First", "Tue", "playWithRobin")
+        pacCtrl = PacControl("court6First", "time1330First", "Tue", "playWithBeckyAndRobin")
         print(pacCtrl.getReqSummary())
 
         with pacCtrl.openBrowser(), pacCtrl:
