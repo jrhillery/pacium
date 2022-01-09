@@ -16,8 +16,7 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.remote.webelement import WebElement
 from selenium.webdriver.support.expected_conditions import (
-    element_to_be_clickable, invisibility_of_element_located,
-    visibility_of_element_located)
+    element_to_be_clickable, invisibility_of_element_located)
 from selenium.webdriver.support.wait import WebDriverWait
 
 from courts import Court, Courts
@@ -265,14 +264,15 @@ class PacControl(AbstractContextManager["PacControl"]):
         """Look for an error window;
             can be caused by looking too early on a future day
             and by looking earlier than run time on run day"""
-        try:
-            errorWindow: WebElement = WebDriverWait(self.webDriver, 2.5).until(
-                visibility_of_element_located(PacControl.ERROR_WIN_LOCATOR))
+        errWins = self.webDriver.find_elements(*PacControl.ERROR_WIN_LOCATOR)
 
-            raise PacException(f"Encountered error: {errorWindow.text}")
-        except TimeoutException:
-            # no error window - this is good
-            pass
+        if errWins:
+            trueErrWins = [errWin for errWin in errWins if errWin.is_displayed()]
+
+            if trueErrWins:
+                raise PacException(
+                    "Encountered error: " +
+                    "; ".join(errorWindow.text for errorWindow in trueErrWins))
     # end checkForErrorWindow()
 
     def selectAvailableCourt(self) -> None:
@@ -284,8 +284,13 @@ class PacControl(AbstractContextManager["PacControl"]):
             for timeRow in fac.courtTime.getTimeRows():
                 self.findSchBlock(fac.court, timeRow).click()
 
-            doingMsg = "view reservation summary"
+            doingMsg = "request reservation summary"
             self.webDriver.find_element(*PacControl.RES_SUMMARY_LOCATOR).click()
+
+            doingMsg = "view reservation summary"
+            WebDriverWait(self.webDriver, 15).until(
+                invisibility_of_element_located(PacControl.LOADING_SPLASH_LOCATOR),
+                "Timed out waiting to " + doingMsg)
 
             doingMsg = "verify reservation is good"
             self.checkForErrorWindow()
@@ -307,7 +312,7 @@ class PacControl(AbstractContextManager["PacControl"]):
             doingMsg = "complete cancel"
             WebDriverWait(self.webDriver, 15).until(
                 invisibility_of_element_located(PacControl.LOADING_SPLASH_LOCATOR),
-                "Timed out waiting for cancel")
+                "Timed out waiting to " + doingMsg)
             self.reservationStarted = False
             # give us a chance to see reservation cancelled
             sleep(0.25)
@@ -333,7 +338,7 @@ class PacControl(AbstractContextManager["PacControl"]):
 
 if __name__ == "__main__":
     try:
-        pacCtrl = PacControl("court6First", "time1330First", "Tue", "playWithBeckyAndRobin")
+        pacCtrl = PacControl("court6First", "time0930First", "Wed", "playWithBeckyAndRobin")
         print(pacCtrl.getReqSummary())
 
         with pacCtrl.openBrowser(), pacCtrl:
