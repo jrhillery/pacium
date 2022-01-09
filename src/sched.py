@@ -131,7 +131,7 @@ class PacControl(AbstractContextManager["PacControl"]):
             liForm.submit()
 
             doingMsg = "complete log-in"
-            link = WebDriverWait(self.webDriver, 15).until(
+            WebDriverWait(self.webDriver, 15).until(
                 element_to_be_clickable(PacControl.RESERVE_COURT_LOCATOR_A),
                 "Timed out waiting to log-in")
             self.loggedIn = True
@@ -153,20 +153,30 @@ class PacControl(AbstractContextManager["PacControl"]):
     # end logOut()
 
     def waitOutLoadingSplash(self, doingMsg: str) -> None:
+        """Wait for loading splash screen to hide"""
         WebDriverWait(self.webDriver, 15).until(
             invisibility_of_element_located(PacControl.LOADING_SPLASH_LOCATOR),
             "Timed out waiting to " + doingMsg)
     # end waitOutLoadingSplash(str)
 
-    def navigateToSchedule(self) -> None:
-        doingMsg = "select home page link to reserve a court"
+    def clickAndLoad(self, action: str, locator: tuple[str, str]) -> None:
+        """Click a located element, then wait for loading splash screen to hide"""
+        doingMsg = "request " + action
         try:
-            self.webDriver.find_element(*PacControl.RESERVE_COURT_LOCATOR_A).click()
+            self.webDriver.find_element(*locator).click()
 
-            doingMsg = "start reserving a court"
+            doingMsg = "load " + action
             self.waitOutLoadingSplash(doingMsg)
+        except WebDriverException as e:
+            raise PacException.fromXcp(doingMsg, e) from e
+    # end clickAndLoad(str, tuple[str, str])
 
-            doingMsg = "read initial schedule date"
+    def navigateToSchedule(self) -> None:
+        doingMsg = "read initial schedule date"
+        try:
+            self.clickAndLoad("reserve court from home page",
+                              PacControl.RESERVE_COURT_LOCATOR_A)
+
             schDate = self.webDriver.find_element(*PacControl.SCHED_DATE_LOCATOR) \
                 .get_attribute("value")
             diff = self.requestDate - datetime.strptime(schDate, "%m/%d/%Y").date()
@@ -176,14 +186,11 @@ class PacControl(AbstractContextManager["PacControl"]):
                 self.webDriver.execute_script(
                     f"calendarAddDay($('date'), {diff.days}, 'mm/dd/yyyy');")
 
-            doingMsg = "display selected schedule date"
+            doingMsg = "load selected schedule date"
             self.waitOutLoadingSplash(doingMsg)
 
-            doingMsg = "start reserving a court"
-            self.webDriver.find_element(*PacControl.RESERVE_COURT_LOCATOR_B).click()
-
-            doingMsg = "open new reservation"
-            self.waitOutLoadingSplash(doingMsg)
+            self.clickAndLoad("reserve court from schedule page",
+                              PacControl.RESERVE_COURT_LOCATOR_B)
             self.reservationStarted = True
         except WebDriverException as e:
             raise PacException.fromXcp(doingMsg, e) from e
@@ -258,7 +265,7 @@ class PacControl(AbstractContextManager["PacControl"]):
         raise PacException(PacControl.NO_COURTS_MSG)
     # end findFirstAvailableCourt()
 
-    def checkForErrorWindow(self) -> None:
+    def handleErrorWindow(self) -> None:
         """Look for an error window;
             can be caused by looking too early on a future day
             and by looking earlier than run time on run day"""
@@ -271,7 +278,7 @@ class PacControl(AbstractContextManager["PacControl"]):
                 raise PacException(
                     "Encountered error: " +
                     "; ".join(errorWindow.text for errorWindow in trueErrWins))
-    # end checkForErrorWindow()
+    # end handleErrorWindow()
 
     def selectAvailableCourt(self) -> None:
         doingMsg = "find court time block"
@@ -282,14 +289,10 @@ class PacControl(AbstractContextManager["PacControl"]):
             for timeRow in fac.courtTime.getTimeRows():
                 self.findSchBlock(fac.court, timeRow).click()
 
-            doingMsg = "request reservation summary"
-            self.webDriver.find_element(*PacControl.RES_SUMMARY_LOCATOR).click()
-
-            doingMsg = "view reservation summary"
-            self.waitOutLoadingSplash(doingMsg)
+            self.clickAndLoad("reservation summary", PacControl.RES_SUMMARY_LOCATOR)
 
             doingMsg = "verify reservation is good"
-            self.checkForErrorWindow()
+            self.handleErrorWindow()
             self.found = fac
         except UnexpectedAlertPresentException as e:
             # this can be caused by looking too many days in the future
@@ -301,17 +304,10 @@ class PacControl(AbstractContextManager["PacControl"]):
     # end selectAvailableCourt()
 
     def cancelPendingReservation(self):
-        doingMsg = "cancel pending reservation"
-        try:
-            self.webDriver.find_element(*PacControl.RES_CANCEL_LOCATOR).click()
-
-            doingMsg = "complete cancel"
-            self.waitOutLoadingSplash(doingMsg)
-            self.reservationStarted = False
-            # give us a chance to see reservation cancelled
-            sleep(0.25)
-        except WebDriverException as e:
-            raise PacException.fromXcp(doingMsg, e) from e
+        self.clickAndLoad("cancel pending reservation", PacControl.RES_CANCEL_LOCATOR)
+        self.reservationStarted = False
+        # give us a chance to see reservation cancelled
+        sleep(0.25)
     # end cancelPendingReservation()
 
     def __exit__(self, exc_type: Type[BaseException] | None, exc_value: BaseException | None,
