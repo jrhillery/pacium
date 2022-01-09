@@ -113,25 +113,25 @@ class PacControl(AbstractContextManager["PacControl"]):
 
     def logIn(self) -> WebElement | None:
         """Log-in to Prosperity Athletic Club home page"""
-        ifXcptionMsg = "open log-in page " + PacControl.PAC_LOG_IN
+        doingMsg = "open log-in page " + PacControl.PAC_LOG_IN
         try:
             self.webDriver.get(PacControl.PAC_LOG_IN)
 
-            ifXcptionMsg = "find log-in form"
+            doingMsg = "find log-in form"
             liForm = self.webDriver.find_element(*PacControl.LOGIN_FORM_LOCATOR)
             self.playerItr = iter(self.players.people)
 
-            ifXcptionMsg = "enter first username"
+            doingMsg = "enter first username"
             liForm.find_element(*PacControl.USERNAME_LOCATOR).send_keys(
                 next(self.playerItr).username, Keys.TAB)
 
-            ifXcptionMsg = "enter password"
+            doingMsg = "enter password"
             self.webDriver.switch_to.active_element.send_keys(self.players.password)
 
-            ifXcptionMsg = "submit log-in"
+            doingMsg = "submit log-in"
             liForm.submit()
 
-            ifXcptionMsg = "complete log-in"
+            doingMsg = "complete log-in"
             link = WebDriverWait(self.webDriver, 15).until(
                 element_to_be_clickable(PacControl.RESERVE_COURT_LOCATOR_A),
                 "Timed out waiting to log-in")
@@ -140,7 +140,7 @@ class PacControl(AbstractContextManager["PacControl"]):
             # now on home page
             return link
         except WebDriverException as e:
-            raise PacException.fromXcp(ifXcptionMsg, e) from e
+            raise PacException.fromXcp(doingMsg, e) from e
     # end logIn()
 
     def logOut(self) -> None:
@@ -206,21 +206,21 @@ class PacControl(AbstractContextManager["PacControl"]):
 
     def addPlayer(self, playerName: str) -> None:
         retrys = 0
-        ifXcptionMsg = ""
+        doingMsg = ""
         try:
             while True:
-                ifXcptionMsg = "key-in players for reservation"
+                doingMsg = "key-in players for reservation"
                 inputFld = self.webDriver.find_element(*PacControl.ADD_NAME_LOCATOR)
                 inputFld.clear()
                 inputFld.send_keys(playerName)
 
                 try:
-                    ifXcptionMsg = "find player"
+                    doingMsg = "find player"
                     playerLnk: WebElement = WebDriverWait(self.webDriver, 15).until(
                         element_to_be_clickable((By.LINK_TEXT, playerName)),
                         f"Timed out waiting for {playerName} in list")
 
-                    ifXcptionMsg = f"add player {playerName} to reservation"
+                    doingMsg = f"add player {playerName} to reservation"
                     playerLnk.click()
 
                     # found the player, stop retrying
@@ -231,7 +231,7 @@ class PacControl(AbstractContextManager["PacControl"]):
                     print(f"Try again to add player {playerName} to reservation")
             # end while
         except WebDriverException as e:
-            raise PacException.fromXcp(ifXcptionMsg, e) from e
+            raise PacException.fromXcp(doingMsg, e) from e
     # end addPlayer(str)
 
     def findSchBlock(self, court: Court, timeRow: str) -> WebElement:
@@ -276,18 +276,18 @@ class PacControl(AbstractContextManager["PacControl"]):
     # end checkForErrorWindow()
 
     def selectAvailableCourt(self) -> None:
-        ifXcptionMsg = "find court time block"
+        doingMsg = "find court time block"
         try:
             fac = self.findFirstAvailableCourt()
 
-            ifXcptionMsg = "select court time block"
+            doingMsg = "select court time block"
             for timeRow in fac.courtTime.getTimeRows():
                 self.findSchBlock(fac.court, timeRow).click()
 
-            ifXcptionMsg = "view reservation summary"
+            doingMsg = "view reservation summary"
             self.webDriver.find_element(*PacControl.RES_SUMMARY_LOCATOR).click()
 
-            ifXcptionMsg = "verify reservation is good"
+            doingMsg = "verify reservation is good"
             self.checkForErrorWindow()
             self.found = fac
         except UnexpectedAlertPresentException as e:
@@ -296,15 +296,15 @@ class PacControl(AbstractContextManager["PacControl"]):
 
             raise PacException(e.alert_text) from e
         except WebDriverException as e:
-            raise PacException.fromXcp(ifXcptionMsg, e) from e
+            raise PacException.fromXcp(doingMsg, e) from e
     # end selectAvailableCourt()
 
     def cancelPendingReservation(self):
-        ifXcptionMsg = "cancel pending reservation"
+        doingMsg = "cancel pending reservation"
         try:
             self.webDriver.find_element(*PacControl.RES_CANCEL_LOCATOR).click()
 
-            ifXcptionMsg = "complete cancel"
+            doingMsg = "complete cancel"
             WebDriverWait(self.webDriver, 15).until(
                 invisibility_of_element_located(PacControl.LOADING_SPLASH_LOCATOR),
                 "Timed out waiting for cancel")
@@ -312,7 +312,7 @@ class PacControl(AbstractContextManager["PacControl"]):
             # give us a chance to see reservation cancelled
             sleep(0.25)
         except WebDriverException as e:
-            raise PacException.fromXcp(ifXcptionMsg, e) from e
+            raise PacException.fromXcp(doingMsg, e) from e
     # end cancelPendingReservation()
 
     def __exit__(self, exc_type: Type[BaseException] | None, exc_value: BaseException | None,
