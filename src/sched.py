@@ -110,7 +110,7 @@ class PacControl(AbstractContextManager["PacControl"]):
             raise PacException.fromXcp("open browser", e) from e
     # end openBrowser()
 
-    def logIn(self) -> WebElement | None:
+    def logIn(self) -> None:
         """Log-in to Prosperity Athletic Club home page"""
         doingMsg = "open log-in page " + PacControl.PAC_LOG_IN
         try:
@@ -135,9 +135,7 @@ class PacControl(AbstractContextManager["PacControl"]):
                 element_to_be_clickable(PacControl.RESERVE_COURT_LOCATOR_A),
                 "Timed out waiting to log-in")
             self.loggedIn = True
-
             # now on home page
-            return link
         except WebDriverException as e:
             raise PacException.fromXcp(doingMsg, e) from e
     # end logIn()
@@ -160,10 +158,10 @@ class PacControl(AbstractContextManager["PacControl"]):
             "Timed out waiting to " + doingMsg)
     # end waitOutLoadingSplash(str)
 
-    def navigateToSchedule(self, reserveLink: WebElement) -> None:
+    def navigateToSchedule(self) -> None:
         doingMsg = "select home page link to reserve a court"
         try:
-            reserveLink.click()
+            self.webDriver.find_element(*PacControl.RESERVE_COURT_LOCATOR_A).click()
 
             doingMsg = "start reserving a court"
             self.waitOutLoadingSplash(doingMsg)
@@ -189,7 +187,7 @@ class PacControl(AbstractContextManager["PacControl"]):
             self.reservationStarted = True
         except WebDriverException as e:
             raise PacException.fromXcp(doingMsg, e) from e
-    # end navigateToSchedule(WebElement)
+    # end navigateToSchedule()
 
     def addPlayers(self) -> None:
         try:
@@ -338,8 +336,8 @@ if __name__ == "__main__":
         print(pacCtrl.getReqSummary())
 
         with pacCtrl.openBrowser(), pacCtrl:
-            resLink = pacCtrl.logIn()
-            pacCtrl.navigateToSchedule(resLink)
+            pacCtrl.logIn()
+            pacCtrl.navigateToSchedule()
             pacCtrl.addPlayers()
             pacCtrl.selectAvailableCourt()
             print(pacCtrl.getFoundSummary())
