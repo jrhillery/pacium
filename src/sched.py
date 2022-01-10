@@ -186,8 +186,9 @@ class PacControl(AbstractContextManager["PacControl"]):
                 self.webDriver.execute_script(
                     f"calendarAddDay($('date'), {diff.days}, 'mm/dd/yyyy');")
 
-            doingMsg = "load selected schedule date"
-            self.waitOutLoadingSplash(doingMsg)
+                doingMsg = "load selected schedule date"
+                self.waitOutLoadingSplash(doingMsg)
+            # end if
 
             self.clickAndLoad("reserve court from schedule page",
                               PacControl.RESERVE_COURT_LOCATOR_B)
