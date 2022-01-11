@@ -8,15 +8,13 @@ from typing import Iterator, NamedTuple, Type
 from urllib.parse import urljoin
 
 from selenium import webdriver
-from selenium.common.exceptions import (TimeoutException,
-                                        UnexpectedAlertPresentException,
-                                        WebDriverException)
+from selenium.common.exceptions import TimeoutException, WebDriverException
 from selenium.webdriver.chrome.webdriver import WebDriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.remote.webelement import WebElement
 from selenium.webdriver.support.expected_conditions import (
-    element_to_be_clickable, invisibility_of_element_located)
+    alert_is_present, element_to_be_clickable, invisibility_of_element_located)
 from selenium.webdriver.support.wait import WebDriverWait
 
 from courts import Court, Courts
@@ -65,6 +63,7 @@ class PacControl(AbstractContextManager["PacControl"]):
         self.loggedIn = False
         self.reservationStarted = False
         self.found: CourtAndTime | None = None
+        self.reserved = False
         self.retryLater = False
         self.playerItr: Iterator[User] | None = None
         try:
@@ -284,25 +283,32 @@ class PacControl(AbstractContextManager["PacControl"]):
     def selectAvailableCourt(self) -> None:
         doingMsg = "find court time block"
         try:
-            fac = self.findFirstAvailableCourt()
+            self.found = self.findFirstAvailableCourt()
 
             doingMsg = "select court time block"
-            for timeRow in fac.courtTime.getTimeRows():
-                self.findSchBlock(fac.court, timeRow).click()
-
-            self.clickAndLoad("reservation summary", PacControl.RES_SUMMARY_LOCATOR)
-
-            doingMsg = "verify reservation is good"
-            self.handleErrorWindow()
-            self.found = fac
-        except UnexpectedAlertPresentException as e:
-            # this can be caused by looking too many days in the future
+            for timeRow in self.found.courtTime.getTimeRows():
+                self.findSchBlock(self.found.court, timeRow).click()
+                WebDriverWait(self.webDriver, 0.5).until_not(alert_is_present())
+        except TimeoutException:
+            # this alert can be caused by looking too many days in the future
             self.retryLater = True
+            alert = self.webDriver.switch_to.alert
+            alertText = alert.text
+            alert.dismiss()
 
-            raise PacException(e.alert_text) from e
+            raise PacException("Encountered alert: " + alertText)
         except WebDriverException as e:
             raise PacException.fromXcp(doingMsg, e) from e
     # end selectAvailableCourt()
+
+    def reserveCourt(self) -> None:
+        doingMsg = "verify reservation is good"
+        try:
+            self.clickAndLoad("reservation summary", PacControl.RES_SUMMARY_LOCATOR)
+            self.handleErrorWindow()
+        except WebDriverException as e:
+            raise PacException.fromXcp(doingMsg, e) from e
+    # end reserveCourt()
 
     def cancelPendingReservation(self):
         self.clickAndLoad("cancel pending reservation", PacControl.RES_CANCEL_LOCATOR)
@@ -311,7 +317,8 @@ class PacControl(AbstractContextManager["PacControl"]):
         sleep(0.25)
     # end cancelPendingReservation()
 
-    def __exit__(self, exc_type: Type[BaseException] | None, exc_value: BaseException | None,
+    def __exit__(self, exc_type: Type[BaseException] | None,
+                 exc_value: BaseException | None,
                  traceback: TracebackType | None) -> bool | None:
 
         try:
@@ -329,7 +336,7 @@ class PacControl(AbstractContextManager["PacControl"]):
 
 if __name__ == "__main__":
     try:
-        pacCtrl = PacControl("court6First", "time0930First", "Wed", "playWithBeckyAndRobin")
+        pacCtrl = PacControl("court6First", "time0930First", "Wed", "playWithRobin")
         print(pacCtrl.getReqSummary())
 
         with pacCtrl.openBrowser(), pacCtrl:
@@ -337,6 +344,7 @@ if __name__ == "__main__":
             pacCtrl.navigateToSchedule()
             pacCtrl.addPlayers()
             pacCtrl.selectAvailableCourt()
+            pacCtrl.reserveCourt()
             print(pacCtrl.getFoundSummary())
             sleep(9)
         # end with
