@@ -265,21 +265,6 @@ class PacControl(AbstractContextManager["PacControl"]):
         raise PacException(PacControl.NO_COURTS_MSG)
     # end findFirstAvailableCourt()
 
-    def handleErrorWindow(self) -> None:
-        """Look for an error window;
-            can be caused by looking too early on a future day
-            and by looking earlier than run time on run day"""
-        errWins = self.webDriver.find_elements(*PacControl.ERROR_WIN_LOCATOR)
-
-        if errWins:
-            trueErrWins = [errWin for errWin in errWins if errWin.is_displayed()]
-
-            if trueErrWins:
-                raise PacException(
-                    "Encountered error: " +
-                    "; ".join(errorWindow.text for errorWindow in trueErrWins))
-    # end handleErrorWindow()
-
     def selectAvailableCourt(self) -> None:
         doingMsg = "find court time block"
         try:
@@ -300,6 +285,21 @@ class PacControl(AbstractContextManager["PacControl"]):
         except WebDriverException as e:
             raise PacException.fromXcp(doingMsg, e) from e
     # end selectAvailableCourt()
+
+    def handleErrorWindow(self) -> None:
+        """Look for an error window;
+            can be caused by looking too early on a future day
+            and by looking earlier than run time on run day"""
+        errWins = self.webDriver.find_elements(*PacControl.ERROR_WIN_LOCATOR)
+
+        if errWins:
+            trueErrWins = [errWin for errWin in errWins if errWin.is_displayed()]
+
+            if trueErrWins:
+                raise PacException(
+                    "Encountered error: " +
+                    "; ".join(errorWindow.text for errorWindow in trueErrWins))
+    # end handleErrorWindow()
 
     def reserveCourt(self) -> None:
         doingMsg = "verify reservation is good"
