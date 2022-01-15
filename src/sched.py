@@ -8,13 +8,14 @@ from typing import Iterator, NamedTuple, Type
 from urllib.parse import urljoin
 
 from selenium import webdriver
-from selenium.common.exceptions import TimeoutException, WebDriverException
+from selenium.common.exceptions import (
+    NoAlertPresentException, TimeoutException, WebDriverException)
 from selenium.webdriver.chrome.webdriver import WebDriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.remote.webelement import WebElement
 from selenium.webdriver.support.expected_conditions import (
-    alert_is_present, element_to_be_clickable, invisibility_of_element_located)
+    element_to_be_clickable, invisibility_of_element_located)
 from selenium.webdriver.support.wait import WebDriverWait
 
 from courts import Court, Courts
@@ -37,6 +38,12 @@ class PacException(Exception):
         """Factory method for WebDriverExceptions"""
         return cls(f"Unable to {unableMsg}, {xcption.__class__.__name__}: {xcption.msg}")
     # end fromXcp(str, WebDriverException)
+
+    @classmethod
+    def fromAlert(cls, unableMsg: str, alertText: str):
+        """Factory method for alerts or similar"""
+        return cls(f"Unable to {unableMsg} due to: {alertText}")
+    # end fromAlert(str, str)
 
 # end class PacException
 
@@ -261,6 +268,22 @@ class PacControl(AbstractContextManager["PacControl"]):
         raise PacException(PacControl.NO_COURTS_MSG)
     # end findFirstAvailableCourt()
 
+    def handleAlert(self, unableMsg: str) -> None:
+        try:
+            alert = self.webDriver.switch_to.alert
+
+            # we get here when an alert is present
+            # this alert can be caused by looking too many days in the future
+            alertText = alert.text
+            alert.dismiss()
+            self.retryLater = True
+
+            raise PacException.fromAlert(unableMsg, alertText)
+        except NoAlertPresentException:
+            # good to not have an alert
+            pass
+    # end handleAlert(str)
+
     def selectAvailableCourt(self) -> None:
         doingMsg = "find court time block"
         try:
@@ -269,20 +292,12 @@ class PacControl(AbstractContextManager["PacControl"]):
             doingMsg = "select court time block"
             for timeRow in self.found.courtTime.getTimeRows():
                 self.findSchBlock(self.found.court, timeRow).click()
-                WebDriverWait(self.webDriver, 0.5).until_not(alert_is_present())
-        except TimeoutException:
-            # this alert can be caused by looking too many days in the future
-            self.retryLater = True
-            alert = self.webDriver.switch_to.alert
-            alertText = alert.text
-            alert.dismiss()
-
-            raise PacException("Encountered alert: " + alertText)
+                self.handleAlert(doingMsg)
         except WebDriverException as e:
             raise PacException.fromXcp(doingMsg, e) from e
     # end selectAvailableCourt()
 
-    def handleErrorWindow(self) -> None:
+    def handleErrorWindow(self, unableMsg: str) -> None:
         """Look for an error window;
             can be caused by looking too early on a future day
             and by looking earlier than run time on run day"""
@@ -292,16 +307,16 @@ class PacControl(AbstractContextManager["PacControl"]):
             trueErrWins = [errWin for errWin in errWins if errWin.is_displayed()]
 
             if trueErrWins:
-                raise PacException(
-                    "Encountered error: " +
+                raise PacException.fromAlert(
+                    unableMsg,
                     "; ".join(errorWindow.text for errorWindow in trueErrWins))
-    # end handleErrorWindow()
+    # end handleErrorWindow(str)
 
     def reserveCourt(self) -> None:
         doingMsg = "verify reservation is good"
         try:
             self.clickAndLoad("reservation summary", PacControl.RES_SUMMARY_LOCATOR)
-            self.handleErrorWindow()
+            self.handleErrorWindow(doingMsg)
         except WebDriverException as e:
             raise PacException.fromXcp(doingMsg, e) from e
     # end reserveCourt()
