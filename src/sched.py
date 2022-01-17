@@ -1,7 +1,9 @@
 
+from argparse import ArgumentParser, Namespace
 from contextlib import AbstractContextManager
-from datetime import datetime
+from datetime import date, datetime
 from os import getcwd
+from pathlib import Path
 from time import sleep
 from types import TracebackType
 from typing import Iterator, NamedTuple, Type
@@ -64,8 +66,7 @@ class PacControl(AbstractContextManager["PacControl"]):
     RES_SUMMARY_LOCATOR = By.LINK_TEXT, "Reservation Summary"
     RES_CANCEL_LOCATOR = By.LINK_TEXT, "Cancel Reservation"
 
-    def __init__(self, preferredCourtsArg: str, preferredTimesArg: str,
-                 dayOfWeekArg: str, playersArg: str) -> None:
+    def __init__(self) -> None:
         self.webDriver: WebDriver | None = None
         self.loggedIn = False
         self.reservationStarted = False
@@ -73,16 +74,17 @@ class PacControl(AbstractContextManager["PacControl"]):
         self.reserved = False
         self.retryLater = False
         self.playerItr: Iterator[User] | None = None
+        args = PacControl.parseArgs()
         try:
-            self.preferredCourts = Courts.load(self.parmFile(preferredCourtsArg))
-            self.preferredTimes = CourtTimes.load(self.parmFile(preferredTimesArg))
-            self.requestDate = CourtTimes.nextDateForDay(dayOfWeekArg)
-            self.players = Players.load(self.parmFile(playersArg))
+            self.preferredCourts = Courts.load(PacControl.parmFile(args.preferredCourts))
+            self.preferredTimes = CourtTimes.load(PacControl.parmFile(args.preferredTimes))
+            self.requestDate = CourtTimes.nextDateForDay(args.dayOfWeek)
+            self.players = Players.load(PacControl.parmFile(args.players))
         except FileNotFoundError as e:
             raise PacException(f"Unable to open file {e.filename} from {getcwd()}.") from e
         except ValueError as e:
             raise PacException(", ".join(e.args)) from e
-    # end __init__(str, str, str, str)
+    # end __init__()
 
     def getReqSummary(self) -> str:
         return (f"Requesting {self.preferredCourts.courtsInPreferredOrder[0].name} "
@@ -101,8 +103,33 @@ class PacControl(AbstractContextManager["PacControl"]):
 
     @staticmethod
     def parmFile(fileNm: str) -> str:
+
         return f"parmFiles/{fileNm}.json"
     # end parmFile(str)
+
+    @staticmethod
+    def parmFileStems(curDir: Path, pattern: str) -> list[str]:
+        """Get a list of file name stems matching the specified pattern"""
+
+        return [f.stem for f in curDir.glob(PacControl.parmFile(pattern))]
+    # end parmFileStems(Path, str)
+
+    @staticmethod
+    def parseArgs() -> Namespace:
+        """Parse the command line arguments"""
+        cd = Path(".")
+        ap = ArgumentParser(description="Module to assist scheduling")
+        ap.add_argument("preferredCourts", help="preferred courts",
+                        choices=PacControl.parmFileStems(cd, "court*"))
+        ap.add_argument("preferredTimes", help="preferred times",
+                        choices=PacControl.parmFileStems(cd, "time*"))
+        ap.add_argument("dayOfWeek", help="day of week abbreviation",
+                        choices=[date(2023, 1, dm).strftime("%a") for dm in range(1, 8)])
+        ap.add_argument("players", help="players for reservation",
+                        choices=PacControl.parmFileStems(cd, "playWith*"))
+
+        return ap.parse_args()
+    # end parseArgs()
 
     def openBrowser(self) -> WebDriver:
         """Get web driver and open browser"""
@@ -347,7 +374,7 @@ class PacControl(AbstractContextManager["PacControl"]):
 
 if __name__ == "__main__":
     try:
-        pacCtrl = PacControl("court6First", "time0930First", "Mon", "playWithRobin")
+        pacCtrl = PacControl()
         print(pacCtrl.getReqSummary())
 
         with pacCtrl.openBrowser(), pacCtrl:
