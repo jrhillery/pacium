@@ -134,7 +134,9 @@ class PacControl(AbstractContextManager["PacControl"]):
     def openBrowser(self) -> WebDriver:
         """Get web driver and open browser"""
         try:
-            self.webDriver = webdriver.Chrome()
+            crOpts = webdriver.ChromeOptions()
+            crOpts.add_experimental_option("excludeSwitches", ["enable-logging"])
+            self.webDriver = webdriver.Chrome(options=crOpts)
 
             return self.webDriver
         except WebDriverException as e:
