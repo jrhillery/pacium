@@ -1,6 +1,22 @@
 {
    "courtsInPreferredOrder": [
       {
+         "name": "Court 10",
+         "tId": "187"
+      },
+      {
+         "name": "Court 11",
+         "tId": "188"
+      },
+      {
+         "name": "Court 1",
+         "tId": "178"
+      },
+      {
+         "name": "Court 2",
+         "tId": "179"
+      },
+      {
          "name": "Court 6",
          "tId": "183"
       },
@@ -17,20 +33,8 @@
          "tId": "185"
       },
       {
-         "name": "Court 10",
-         "tId": "187"
-      },
-      {
          "name": "Court 3",
          "tId": "180"
-      },
-      {
-         "name": "Court 1",
-         "tId": "178"
-      },
-      {
-         "name": "Court 2",
-         "tId": "179"
       },
       {
          "name": "Court 4",
@@ -39,10 +43,6 @@
       {
          "name": "Court 9",
          "tId": "186"
-      },
-      {
-         "name": "Court 11",
-         "tId": "188"
       },
       {
          "name": "Court 12",
