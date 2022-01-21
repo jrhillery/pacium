@@ -64,6 +64,7 @@ class PacControl(AbstractContextManager["PacControl"]):
     ADD_NAME_LOCATOR = By.CSS_SELECTOR, "input#fakeUserName"
     ERROR_WIN_LOCATOR = By.CSS_SELECTOR, "div#confirm-user-popup, div#alert-dialog-1"
     RES_SUMMARY_LOCATOR = By.LINK_TEXT, "Reservation Summary"
+    RES_CONFIRM_LOCATOR = By.CSS_SELECTOR, "input.btn-confirm-reservation-summary"
     RES_CANCEL_LOCATOR = By.LINK_TEXT, "Cancel Reservation"
 
     def __init__(self) -> None:
@@ -80,6 +81,7 @@ class PacControl(AbstractContextManager["PacControl"]):
             self.preferredTimes = CourtTimes.load(PacControl.parmFile(args.preferredTimes))
             self.requestDate = CourtTimes.nextDateForDay(args.dayOfWeek)
             self.players = Players.load(PacControl.parmFile(args.players))
+            self.testMode = args.test
         except FileNotFoundError as e:
             raise PacException(f"Unable to open file {e.filename} from {getcwd()}.") from e
         except ValueError as e:
@@ -89,7 +91,8 @@ class PacControl(AbstractContextManager["PacControl"]):
     def getReqSummary(self) -> str:
         return (f"Requesting {self.preferredCourts.courtsInPreferredOrder[0].name} "
                 f"at {self.preferredTimes.timesInPreferredOrder[0].strWithDate(self.requestDate)} "
-                f"for {' and '.join(p.nickname for p in self.players.people)}.")
+                f"for {' and '.join(p.nickname for p in self.players.people)}"
+                f"{' in test mode' if self.testMode else ''}.")
     # end getReqSummary()
 
     def getFoundSummary(self) -> str:
@@ -127,6 +130,8 @@ class PacControl(AbstractContextManager["PacControl"]):
                         choices=[date(2023, 1, dm).strftime("%a") for dm in range(1, 8)])
         ap.add_argument("players", help="players for reservation",
                         choices=PacControl.parmFileStems(cd, "playWith*"))
+        ap.add_argument("-t", "--test", help="test mode - don't confirm reservation",
+                        action="store_true")
 
         return ap.parse_args()
     # end parseArgs()
@@ -150,7 +155,7 @@ class PacControl(AbstractContextManager["PacControl"]):
             self.webDriver.get(PacControl.PAC_LOG_IN)
 
             doingMsg = "find log-in form"
-            liForm = self.webDriver.find_element(*PacControl.LOGIN_FORM_LOCATOR)
+            liForm: WebElement = self.webDriver.find_element(*PacControl.LOGIN_FORM_LOCATOR)
             self.playerItr = iter(self.players.people)
 
             doingMsg = "enter first username"
@@ -246,7 +251,8 @@ class PacControl(AbstractContextManager["PacControl"]):
         try:
             while True:
                 doingMsg = "key-in player for reservation"
-                inputFld = self.webDriver.find_element(*PacControl.ADD_NAME_LOCATOR)
+                inputFld: WebElement = self.webDriver.find_element(
+                    *PacControl.ADD_NAME_LOCATOR)
                 inputFld.clear()
                 inputFld.send_keys(playerName)
 
@@ -346,6 +352,15 @@ class PacControl(AbstractContextManager["PacControl"]):
         try:
             self.clickAndLoad("reservation summary", PacControl.RES_SUMMARY_LOCATOR)
             self.handleErrorWindow(doingMsg)
+
+            if self.testMode:
+                butt: WebElement = self.webDriver.find_element(
+                    *PacControl.RES_CONFIRM_LOCATOR)
+                print(butt.get_attribute("value"), "enabled:", butt.is_enabled())
+            else:
+                self.clickAndLoad("confirm reservation", PacControl.RES_CONFIRM_LOCATOR)
+                self.reservationStarted = False
+                print("Reservation confirmed")
         except WebDriverException as e:
             raise PacException.fromXcp(doingMsg, e) from e
     # end reserveCourt()
@@ -353,6 +368,7 @@ class PacControl(AbstractContextManager["PacControl"]):
     def cancelPendingReservation(self):
         self.clickAndLoad("cancel pending reservation", PacControl.RES_CANCEL_LOCATOR)
         self.reservationStarted = False
+        print("Reservation not confirmed")
         # give us a chance to see reservation cancelled
         sleep(0.25)
     # end cancelPendingReservation()
