@@ -59,7 +59,7 @@ class PacControl(AbstractContextManager["PacControl"]):
     USERNAME_LOCATOR = By.NAME, "login"
     RESERVE_LOCATOR_A = By.LINK_TEXT, "Reserve a Court"
     LOADING_SPLASH_LOCATOR = By.CSS_SELECTOR, "div#ui-id-1"
-    SCHED_DATE_LOCATOR = By.CSS_SELECTOR, "input#date"
+    SCH_DATE_LOCATOR = By.CSS_SELECTOR, "input#date"
     RESERVE_LOCATOR_B = By.CSS_SELECTOR, "a#reserve-permanent-member-button"
     ADD_NAME_LOCATOR = By.CSS_SELECTOR, "input#fakeUserName"
     ERROR_WIN_LOCATOR = By.CSS_SELECTOR, "div#confirm-user-popup, div#alert-dialog-1"
@@ -148,6 +148,11 @@ class PacControl(AbstractContextManager["PacControl"]):
             raise PacException.fromXcp("open browser", e) from e
     # end openBrowser()
 
+    def findElement(self, locator: tuple[str, str]) -> WebElement:
+
+        return self.webDriver.find_element(*locator)
+    # end findElement(tuple[str, str])
+
     def logIn(self) -> None:
         """Log-in to Prosperity Athletic Club home page"""
         doingMsg = "open log-in page " + PacControl.PAC_LOG_IN
@@ -155,7 +160,7 @@ class PacControl(AbstractContextManager["PacControl"]):
             self.webDriver.get(PacControl.PAC_LOG_IN)
 
             doingMsg = "find log-in form"
-            liForm: WebElement = self.webDriver.find_element(*PacControl.LOGIN_FORM_LOCATOR)
+            liForm = self.findElement(PacControl.LOGIN_FORM_LOCATOR)
             self.playerItr = iter(self.players.people)
 
             doingMsg = "enter first username"
@@ -201,7 +206,7 @@ class PacControl(AbstractContextManager["PacControl"]):
         """Click a located element, then wait for loading splash screen to hide"""
         doingMsg = "request " + action
         try:
-            self.webDriver.find_element(*locator).click()
+            self.findElement(locator).click()
 
             doingMsg = "load " + action
             self.waitOutLoadingSplash(doingMsg)
@@ -214,8 +219,7 @@ class PacControl(AbstractContextManager["PacControl"]):
         try:
             self.clickAndLoad("reserve court on home page", PacControl.RESERVE_LOCATOR_A)
 
-            schDate = self.webDriver.find_element(
-                *PacControl.SCHED_DATE_LOCATOR).get_attribute("value")
+            schDate = self.findElement(PacControl.SCH_DATE_LOCATOR).get_attribute("value")
             diff = self.requestDate - datetime.strptime(schDate, "%m/%d/%Y").date()
 
             if diff:
@@ -251,8 +255,7 @@ class PacControl(AbstractContextManager["PacControl"]):
         try:
             while True:
                 doingMsg = "key-in player for reservation"
-                inputFld: WebElement = self.webDriver.find_element(
-                    *PacControl.ADD_NAME_LOCATOR)
+                inputFld = self.findElement(PacControl.ADD_NAME_LOCATOR)
                 inputFld.clear()
                 inputFld.send_keys(playerName)
 
@@ -304,6 +307,7 @@ class PacControl(AbstractContextManager["PacControl"]):
     # end findFirstAvailableCourt()
 
     def handleAlert(self, unableMsg: str) -> None:
+        """Raise an exception if an alert is present, also dismiss that alert"""
         try:
             alert = self.webDriver.switch_to.alert
 
@@ -328,6 +332,7 @@ class PacControl(AbstractContextManager["PacControl"]):
             for timeRow in self.found.courtTime.getTimeRows():
                 self.findSchBlock(self.found.court, timeRow).click()
                 self.handleAlert(doingMsg)
+            # end for
         except WebDriverException as e:
             raise PacException.fromXcp(doingMsg, e) from e
     # end selectAvailableCourt()
@@ -343,8 +348,7 @@ class PacControl(AbstractContextManager["PacControl"]):
 
             if trueErrWins:
                 raise PacException.fromAlert(
-                    unableMsg,
-                    "; ".join(errorWindow.text for errorWindow in trueErrWins))
+                    unableMsg, "; ".join(errWin.text for errWin in trueErrWins))
     # end handleErrorWindow(str)
 
     def reserveCourt(self) -> None:
@@ -354,8 +358,7 @@ class PacControl(AbstractContextManager["PacControl"]):
             self.handleErrorWindow(doingMsg)
 
             if self.testMode:
-                butt: WebElement = self.webDriver.find_element(
-                    *PacControl.RES_CONFIRM_LOCATOR)
+                butt = self.findElement(PacControl.RES_CONFIRM_LOCATOR)
                 print(butt.get_attribute("value"), "enabled:", butt.is_enabled())
             else:
                 self.clickAndLoad("confirm reservation", PacControl.RES_CONFIRM_LOCATOR)
