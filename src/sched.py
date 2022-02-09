@@ -1,7 +1,9 @@
 
+import logging
 from argparse import ArgumentParser, Namespace
 from contextlib import AbstractContextManager
 from datetime import date, datetime
+from logging.config import dictConfig
 from os import getcwd
 from pathlib import Path
 from time import sleep
@@ -67,7 +69,7 @@ class PacControl(AbstractContextManager["PacControl"]):
     RES_CONFIRM_LOCATOR = By.CSS_SELECTOR, "input.btn-confirm-reservation-summary"
     RES_CANCEL_LOCATOR = By.LINK_TEXT, "Cancel Reservation"
 
-    def __init__(self) -> None:
+    def __init__(self):
         self.webDriver: WebDriver | None = None
         self.loggedIn = False
         self.reservationStarted = False
@@ -273,7 +275,7 @@ class PacControl(AbstractContextManager["PacControl"]):
                 except TimeoutException as e:
                     if (retrys := retrys + 1) == 3:
                         raise e
-                    print(f"Try again to add player {playerName} to reservation")
+                    logging.warning(f"Try again to add player {playerName} to reservation")
             # end while
         except WebDriverException as e:
             raise PacException.fromXcp(doingMsg, e) from e
@@ -359,11 +361,11 @@ class PacControl(AbstractContextManager["PacControl"]):
 
             if self.testMode:
                 butt = self.findElement(PacControl.RES_CONFIRM_LOCATOR)
-                print(butt.get_attribute("value"), "enabled:", butt.is_enabled())
+                logging.info(f"{butt.get_attribute('value')} enabled: {butt.is_enabled()}")
             else:
                 self.clickAndLoad("confirm reservation", PacControl.RES_CONFIRM_LOCATOR)
                 self.reservationStarted = False
-                print("Reservation confirmed")
+                logging.info("Reservation confirmed")
         except WebDriverException as e:
             raise PacException.fromXcp(doingMsg, e) from e
     # end reserveCourt()
@@ -371,7 +373,7 @@ class PacControl(AbstractContextManager["PacControl"]):
     def cancelPendingReservation(self):
         self.clickAndLoad("cancel pending reservation", PacControl.RES_CANCEL_LOCATOR)
         self.reservationStarted = False
-        print("Reservation not confirmed")
+        logging.info("Reservation not confirmed")
         # give us a chance to see reservation cancelled
         sleep(0.25)
     # end cancelPendingReservation()
@@ -393,10 +395,44 @@ class PacControl(AbstractContextManager["PacControl"]):
 # end class PacControl
 
 
+# format times like: Tue Feb 08 18:25:02
+DATE_FMT_DAY_SECOND = "%a %b %d %H:%M:%S"
+
+
+def configLogging():
+    dictConfig({
+        "version": 1,
+        "formatters": {
+            "detail": {
+                "format": "%(levelname)s %(asctime)s.%(msecs)03d %(module)s: %(message)s",
+                "datefmt": DATE_FMT_DAY_SECOND
+            },
+            "simple": {
+                "format": "%(asctime)s.%(msecs)03d: %(message)s",
+                "datefmt": DATE_FMT_DAY_SECOND
+            }
+        },
+        "handlers": {
+            "console": {
+                "class": "logging.StreamHandler",
+                "level": "INFO",
+                "formatter": "simple",
+                "stream": "ext://sys.stdout"
+            }
+        },
+        "root": {
+            "level": "DEBUG",
+            "handlers": ["console"]
+        }
+    })
+# end configLogging()
+
+
 if __name__ == "__main__":
+    configLogging()
     try:
         pacCtrl = PacControl()
-        print(pacCtrl.getReqSummary())
+        logging.info(pacCtrl.getReqSummary())
 
         with pacCtrl.openBrowser(), pacCtrl:
             pacCtrl.logIn()
@@ -404,8 +440,8 @@ if __name__ == "__main__":
             pacCtrl.addPlayers()
             pacCtrl.selectAvailableCourt()
             pacCtrl.reserveCourt()
-            print(pacCtrl.getFoundSummary())
+            logging.info(pacCtrl.getFoundSummary())
             sleep(9)
         # end with
     except PacException as xcpt:
-        print(xcpt)
+        logging.error("Exception suppressed:", exc_info=xcpt)
