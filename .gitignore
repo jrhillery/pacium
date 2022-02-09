@@ -2,3 +2,5 @@ parmFiles/court*Only.json
 parmFiles/play*
 parmFiles/time0630First.json
 src/__pycache__/
+/pacium.log*
+/pacium.tst.log*

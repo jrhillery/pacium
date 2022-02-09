@@ -69,7 +69,7 @@ class PacControl(AbstractContextManager["PacControl"]):
     RES_CONFIRM_LOCATOR = By.CSS_SELECTOR, "input.btn-confirm-reservation-summary"
     RES_CANCEL_LOCATOR = By.LINK_TEXT, "Cancel Reservation"
 
-    def __init__(self):
+    def __init__(self, args: Namespace):
         self.webDriver: WebDriver | None = None
         self.loggedIn = False
         self.reservationStarted = False
@@ -77,7 +77,6 @@ class PacControl(AbstractContextManager["PacControl"]):
         self.reserved = False
         self.retryLater = False
         self.playerItr: Iterator[User] | None = None
-        args = PacControl.parseArgs()
         try:
             self.preferredCourts = Courts.load(PacControl.parmFile(args.preferredCourts))
             self.preferredTimes = CourtTimes.load(PacControl.parmFile(args.preferredTimes))
@@ -399,7 +398,7 @@ class PacControl(AbstractContextManager["PacControl"]):
 DATE_FMT_DAY_SECOND = "%a %b %d %H:%M:%S"
 
 
-def configLogging():
+def configLogging(testMode: bool):
     dictConfig({
         "version": 1,
         "formatters": {
@@ -418,20 +417,30 @@ def configLogging():
                 "level": "INFO",
                 "formatter": "simple",
                 "stream": "ext://sys.stdout"
+            },
+            "file": {
+                "class": "logging.handlers.RotatingFileHandler",
+                "level": "DEBUG",
+                "formatter": "detail",
+                "filename": "pacium.tst.log" if testMode else "pacium.log",
+                "maxBytes": 30000,
+                "backupCount": 2,
+                "encoding": "utf-8"
             }
         },
         "root": {
             "level": "DEBUG",
-            "handlers": ["console"]
+            "handlers": ["console", "file"]
         }
     })
 # end configLogging()
 
 
 if __name__ == "__main__":
-    configLogging()
+    cLArgs = PacControl.parseArgs()
+    configLogging(cLArgs.test)
     try:
-        pacCtrl = PacControl()
+        pacCtrl = PacControl(cLArgs)
         logging.info(pacCtrl.getReqSummary())
 
         with pacCtrl.openBrowser(), pacCtrl:
