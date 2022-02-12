@@ -82,6 +82,7 @@ class PacControl(AbstractContextManager["PacControl"]):
             self.preferredTimes = CourtTimes.load(PacControl.parmFile(args.preferredTimes))
             self.requestDate = CourtTimes.nextDateForDay(args.dayOfWeek)
             self.players = Players.load(PacControl.parmFile(args.players))
+            self.showMode = args.show
             self.testMode = args.test
         except FileNotFoundError as e:
             raise PacException(f"Unable to open file {e.filename} from {getcwd()}.") from e
@@ -93,6 +94,7 @@ class PacControl(AbstractContextManager["PacControl"]):
         return (f"Requesting {self.preferredCourts.courtsInPreferredOrder[0].name} "
                 f"at {self.preferredTimes.timesInPreferredOrder[0].strWithDate(self.requestDate)} "
                 f"for {' and '.join(p.nickname for p in self.players.people)}"
+                f"{' in show mode' if self.showMode else ''}"
                 f"{' in test mode' if self.testMode else ''}.")
     # end getReqSummary()
 
@@ -131,6 +133,8 @@ class PacControl(AbstractContextManager["PacControl"]):
                         choices=[date(2023, 1, dm).strftime("%a") for dm in range(1, 8)])
         ap.add_argument("players", help="players for reservation",
                         choices=PacControl.parmFileStems(cd, "playWith*"))
+        ap.add_argument("-s", "--show", help="show mode - just show the court schedule",
+                        action="store_true")
         ap.add_argument("-t", "--test", help="test mode - don't confirm reservation",
                         action="store_true")
 
@@ -438,7 +442,7 @@ def configLogging(testMode: bool):
 
 if __name__ == "__main__":
     cLArgs = PacControl.parseArgs()
-    configLogging(cLArgs.test)
+    configLogging(cLArgs.show or cLArgs.test)
     try:
         pacCtrl = PacControl(cLArgs)
         logging.info(pacCtrl.getReqSummary())
@@ -446,11 +450,14 @@ if __name__ == "__main__":
         with pacCtrl.openBrowser(), pacCtrl:
             pacCtrl.logIn()
             pacCtrl.navigateToSchedule()
-            pacCtrl.addPlayers()
-            pacCtrl.selectAvailableCourt()
-            pacCtrl.reserveCourt()
-            logging.info(pacCtrl.getFoundSummary())
+
+            if not cLArgs.show:
+                pacCtrl.addPlayers()
+                pacCtrl.selectAvailableCourt()
+                pacCtrl.reserveCourt()
+                logging.info(pacCtrl.getFoundSummary())
             sleep(9)
         # end with
     except PacException as xcpt:
-        logging.error("Exception suppressed:", exc_info=xcpt)
+        logging.error(xcpt)
+        logging.debug("Exception suppressed:", exc_info=xcpt)

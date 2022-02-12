@@ -5,12 +5,12 @@
          "tId": "180"
       },
       {
-         "name": "Court 1",
-         "tId": "178"
-      },
-      {
          "name": "Court 2",
          "tId": "179"
+      },
+      {
+         "name": "Court 1",
+         "tId": "178"
       }
    ]
 }
