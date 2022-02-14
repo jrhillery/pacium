@@ -1,5 +1,6 @@
 
 import json
+from pathlib import Path
 from typing import NamedTuple, Type, TypeVar
 
 
@@ -17,13 +18,13 @@ class Courts(NamedTuple):
     T = TypeVar("T")
 
     @classmethod
-    def load(cls: Type[T], fileNm: str) -> T:
+    def load(cls: Type[T], fileNm: Path) -> T:
         with open(fileNm, "r", encoding="utf-8") as file:
 
             return json.load(file, object_hook=decodeCourts)
     # end load(str)
 
-    def save(self, fileNm: str) -> None:
+    def save(self, fileNm: Path) -> None:
         with open(fileNm, "w", encoding="utf-8") as file:
             dct = {"courtsInPreferredOrder":
                    [court._asdict() for court in self.courtsInPreferredOrder]}
@@ -51,9 +52,10 @@ if __name__ == "__main__":
     data = Courts([Court("Court 1", "178"),
                    Court("Court 3", "180"),
                    Court("Court 12", "189")])
-    data.save("data.json")
+    dFileNm = Path("data.json")
+    data.save(dFileNm)
 
-    readBack = Courts.load("data.json")
+    readBack = Courts.load(dFileNm)
 
     print(type(readBack), readBack)
 # end if

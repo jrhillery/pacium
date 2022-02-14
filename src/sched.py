@@ -1,11 +1,8 @@
 
 import logging
-from argparse import ArgumentParser, Namespace
 from contextlib import AbstractContextManager
-from datetime import date, datetime
-from logging.config import dictConfig
+from datetime import datetime
 from os import getcwd
-from pathlib import Path
 from time import sleep
 from types import TracebackType
 from typing import Iterator, NamedTuple, Type
@@ -23,6 +20,7 @@ from selenium.webdriver.support.expected_conditions import (
 from selenium.webdriver.support.wait import WebDriverWait
 
 from courts import Court, Courts
+from pacargs import PacArgs
 from players import Players, User
 from times import CourtTime, CourtTimes
 
@@ -69,7 +67,7 @@ class PacControl(AbstractContextManager["PacControl"]):
     RES_CONFIRM_LOCATOR = By.CSS_SELECTOR, "input.btn-confirm-reservation-summary"
     RES_CANCEL_LOCATOR = By.LINK_TEXT, "Cancel Reservation"
 
-    def __init__(self, args: Namespace):
+    def __init__(self, args: PacArgs):
         self.webDriver: WebDriver | None = None
         self.loggedIn = False
         self.reservationStarted = False
@@ -78,17 +76,17 @@ class PacControl(AbstractContextManager["PacControl"]):
         self.retryLater = False
         self.playerItr: Iterator[User] | None = None
         try:
-            self.preferredCourts = Courts.load(PacControl.parmFile(args.preferredCourts))
-            self.preferredTimes = CourtTimes.load(PacControl.parmFile(args.preferredTimes))
+            self.preferredCourts = Courts.load(args.preferredCourts)
+            self.preferredTimes = CourtTimes.load(args.preferredTimes)
             self.requestDate = CourtTimes.nextDateForDay(args.dayOfWeek)
-            self.players = Players.load(PacControl.parmFile(args.players))
-            self.showMode = args.show
-            self.testMode = args.test
+            self.players = Players.load(args.players)
+            self.showMode = args.showMode
+            self.testMode = args.testMode
         except FileNotFoundError as e:
             raise PacException(f"Unable to open file {e.filename} from {getcwd()}.") from e
         except ValueError as e:
             raise PacException(", ".join(e.args)) from e
-    # end __init__()
+    # end __init__(PacArgs)
 
     def getReqSummary(self) -> str:
         return (f"Requesting {self.preferredCourts.courtsInPreferredOrder[0].name} "
@@ -106,40 +104,6 @@ class PacControl(AbstractContextManager["PacControl"]):
         else:
             return PacControl.NO_COURTS_MSG
     # end getFoundSummary()
-
-    @staticmethod
-    def parmFile(fileNm: str) -> str:
-
-        return f"parmFiles/{fileNm}.json"
-    # end parmFile(str)
-
-    @staticmethod
-    def parmFileStems(curDir: Path, pattern: str) -> list[str]:
-        """Get a list of file name stems matching the specified pattern"""
-
-        return [f.stem for f in curDir.glob(PacControl.parmFile(pattern))]
-    # end parmFileStems(Path, str)
-
-    @staticmethod
-    def parseArgs() -> Namespace:
-        """Parse the command line arguments"""
-        cd = Path(".")
-        ap = ArgumentParser(description="Module to assist scheduling")
-        ap.add_argument("preferredCourts", help="preferred courts",
-                        choices=PacControl.parmFileStems(cd, "court*"))
-        ap.add_argument("preferredTimes", help="preferred times",
-                        choices=PacControl.parmFileStems(cd, "time*"))
-        ap.add_argument("dayOfWeek", help="day of week abbreviation",
-                        choices=[date(2023, 1, dm).strftime("%a") for dm in range(1, 8)])
-        ap.add_argument("players", help="players for reservation",
-                        choices=PacControl.parmFileStems(cd, "playWith*"))
-        ap.add_argument("-s", "--show", help="show mode - just show the court schedule",
-                        action="store_true")
-        ap.add_argument("-t", "--test", help="test mode - don't confirm reservation",
-                        action="store_true")
-
-        return ap.parse_args()
-    # end parseArgs()
 
     def openBrowser(self) -> WebDriver:
         """Get web driver and open browser"""
@@ -396,68 +360,3 @@ class PacControl(AbstractContextManager["PacControl"]):
     # end __exit__(Type[BaseException] | None, BaseException | None, TracebackType | None)
 
 # end class PacControl
-
-
-# format times like: Tue Feb 08 18:25:02
-DATE_FMT_DAY_SECOND = "%a %b %d %H:%M:%S"
-
-
-def configLogging(testMode: bool):
-    dictConfig({
-        "version": 1,
-        "formatters": {
-            "detail": {
-                "format": "%(levelname)s %(asctime)s.%(msecs)03d %(module)s: %(message)s",
-                "datefmt": DATE_FMT_DAY_SECOND
-            },
-            "simple": {
-                "format": "%(asctime)s.%(msecs)03d: %(message)s",
-                "datefmt": DATE_FMT_DAY_SECOND
-            }
-        },
-        "handlers": {
-            "console": {
-                "class": "logging.StreamHandler",
-                "level": "INFO",
-                "formatter": "simple",
-                "stream": "ext://sys.stdout"
-            },
-            "file": {
-                "class": "logging.handlers.RotatingFileHandler",
-                "level": "DEBUG",
-                "formatter": "detail",
-                "filename": "pacium.tst.log" if testMode else "pacium.log",
-                "maxBytes": 30000,
-                "backupCount": 2,
-                "encoding": "utf-8"
-            }
-        },
-        "root": {
-            "level": "DEBUG",
-            "handlers": ["console", "file"]
-        }
-    })
-# end configLogging()
-
-
-if __name__ == "__main__":
-    cLArgs = PacControl.parseArgs()
-    configLogging(cLArgs.show or cLArgs.test)
-    try:
-        pacCtrl = PacControl(cLArgs)
-        logging.info(pacCtrl.getReqSummary())
-
-        with pacCtrl.openBrowser(), pacCtrl:
-            pacCtrl.logIn()
-            pacCtrl.navigateToSchedule()
-
-            if not cLArgs.show:
-                pacCtrl.addPlayers()
-                pacCtrl.selectAvailableCourt()
-                pacCtrl.reserveCourt()
-                logging.info(pacCtrl.getFoundSummary())
-            sleep(9)
-        # end with
-    except PacException as xcpt:
-        logging.error(xcpt)
-        logging.debug("Exception suppressed:", exc_info=xcpt)

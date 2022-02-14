@@ -1,5 +1,6 @@
 
 import json
+from pathlib import Path
 from typing import NamedTuple, Type, TypeVar
 
 
@@ -18,13 +19,13 @@ class Players(NamedTuple):
     T = TypeVar("T")
 
     @classmethod
-    def load(cls: Type[T], fileNm: str) -> T:
+    def load(cls: Type[T], fileNm: Path) -> T:
         with open(fileNm, "r", encoding="utf-8") as file:
 
             return json.load(file, object_hook=decodePlayers)
     # end load(str)
 
-    def save(self, fileNm: str) -> None:
+    def save(self, fileNm: Path) -> None:
         with open(fileNm, "w", encoding="utf-8") as file:
             dct = {"people": [user._asdict() for user in self.people],
                    "password": self.password}
@@ -55,9 +56,10 @@ if __name__ == "__main__":
     data = Players([User("Diane", "dianehilleríe"),
                     User("Beckíe", "bkúmar"),
                     User("Peño", "mediterranián")], "tenis1")
-    data.save("data.json")
+    dFileNm = Path("data.json")
+    data.save(dFileNm)
 
-    readBack = Players.load("data.json")
+    readBack = Players.load(dFileNm)
 
     print(type(readBack), readBack)
 # end if

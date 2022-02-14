@@ -2,6 +2,7 @@
 import json
 from datetime import date, datetime, time, timedelta
 from functools import cache
+from pathlib import Path
 from time import strptime
 from typing import NamedTuple, Type, TypeVar
 
@@ -43,13 +44,13 @@ class CourtTimes(NamedTuple):
     T = TypeVar("T")
 
     @classmethod
-    def load(cls: Type[T], fileNm: str) -> T:
+    def load(cls: Type[T], fileNm: Path) -> T:
         with open(fileNm, "r", encoding="utf-8") as file:
 
             return json.load(file, object_hook=decodeCourtTimes)
     # end load(str)
 
-    def save(self, fileNm: str) -> None:
+    def save(self, fileNm: Path) -> None:
         with open(fileNm, "w", encoding="utf-8") as file:
             dct = {"timesInPreferredOrder":
                    [{"startTime": ct.startTime.isoformat(timespec="minutes"),
@@ -97,9 +98,10 @@ if __name__ == "__main__":
     data = CourtTimes([CourtTime(time(8, 30), 90),
                        CourtTime(time(9, 0), 90),
                        CourtTime(time(8, 0), 90)])
-    data.save("data.json")
+    dFileNm = Path("data.json")
+    data.save(dFileNm)
 
-    readBack = CourtTimes.load("data.json")
+    readBack = CourtTimes.load(dFileNm)
 
     print(type(readBack), readBack)
 
