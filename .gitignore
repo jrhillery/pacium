@@ -4,3 +4,4 @@ parmFiles/time0630First.json
 src/__pycache__/
 /pacium.log*
 /pacium.tst.log*
+/test/

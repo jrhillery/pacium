@@ -8,45 +8,53 @@ class PacArgs(object):
     """Class to house pacium command line arguments"""
 
     def __init__(self):
-        args = PacArgs.parseArgs()
-        self.preferredCourts: Path = Path(PacArgs.parmFile(args.preferredCourts))
-        self.preferredTimes: Path = Path(PacArgs.parmFile(args.preferredTimes))
+        self.parmPath = PacArgs.findParmPath()
+        args = self.parseArgs()
+        self.preferredCourts = self.parmFile(args.preferredCourts)
+        self.preferredTimes = self.parmFile(args.preferredTimes)
         self.dayOfWeek: str = args.dayOfWeek
-        self.players: Path = Path(PacArgs.parmFile(args.players))
+        self.players = self.parmFile(args.players)
         self.showMode: bool = args.show
         self.testMode: bool = args.test
     # end __init__()
 
     @staticmethod
-    def parmFile(fileNm: str) -> str:
+    def findParmPath() -> Path:
+        # look in child with a specific name
+        pp = Path("parmFiles")
 
-        return f"parmFiles/{fileNm}.json"
-    # end parmFile(str)
+        if not pp.is_dir():
+            # just use current directory
+            pp = Path(".")
 
-    @staticmethod
-    def parmFileStems(curDir: Path, pattern: str) -> list[str]:
-        """Get a list of file name stems matching the specified pattern"""
+        return pp
+    # end findParmPath()
 
-        return [f.stem for f in curDir.glob(PacArgs.parmFile(pattern))]
-    # end parmFileStems(Path, str)
+    def parmFile(self, fileNm: Path) -> Path:
+        if fileNm.exists():
+            return fileNm
+        else:
+            pf = Path(self.parmPath, fileNm)
+
+            return pf.with_suffix(".json")
+    # end parmFile(Path)
 
     @staticmethod
     def parseArgs() -> Namespace:
         """Parse the command line arguments"""
-        cd = Path(".")
         ap = ArgumentParser(description="Module to assist scheduling")
-        ap.add_argument("preferredCourts", help="preferred courts",
-                        choices=PacArgs.parmFileStems(cd, "court*"))
-        ap.add_argument("preferredTimes", help="preferred times",
-                        choices=PacArgs.parmFileStems(cd, "time*"))
+        ap.add_argument("preferredCourts", type=Path,
+                        help="preferred courts (court*)")
+        ap.add_argument("preferredTimes", type=Path,
+                        help="preferred times (time*)")
         ap.add_argument("dayOfWeek", help="day of week abbreviation",
                         choices=[date(2023, 1, dm).strftime("%a") for dm in range(1, 8)])
-        ap.add_argument("players", help="players for reservation",
-                        choices=PacArgs.parmFileStems(cd, "playWith*"))
-        ap.add_argument("-s", "--show", help="show mode - just show the court schedule",
-                        action="store_true")
-        ap.add_argument("-t", "--test", help="test mode - don't confirm reservation",
-                        action="store_true")
+        ap.add_argument("players", type=Path,
+                        help="players for reservation (playWith*)")
+        ap.add_argument("-s", "--show", action="store_true",
+                        help="show mode - just show the court schedule")
+        ap.add_argument("-t", "--test", action="store_true",
+                        help="test mode - don't confirm reservation")
 
         return ap.parse_args()
     # end parseArgs()
