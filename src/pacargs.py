@@ -43,12 +43,12 @@ class PacArgs(object):
     def parseArgs() -> Namespace:
         """Parse the command line arguments"""
         ap = ArgumentParser(description="Module to assist scheduling")
-        ap.add_argument("preferredCourts", type=Path,
-                        help="preferred courts (court*)")
-        ap.add_argument("preferredTimes", type=Path,
-                        help="preferred times (time*)")
         ap.add_argument("dayOfWeek", help="day of week abbreviation",
                         choices=[date(2023, 1, dm).strftime("%a") for dm in range(1, 8)])
+        ap.add_argument("preferredTimes", type=Path,
+                        help="preferred times (time*)")
+        ap.add_argument("preferredCourts", type=Path,
+                        help="preferred courts (court*)")
         ap.add_argument("players", type=Path,
                         help="players for reservation (playWith*)")
         ap.add_argument("-s", "--show", action="store_true",
