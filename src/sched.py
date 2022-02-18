@@ -63,6 +63,7 @@ class PacControl(AbstractContextManager["PacControl"]):
     RESERVE_LOCATOR_B = By.CSS_SELECTOR, "a#reserve-permanent-member-button"
     ADD_NAME_LOCATOR = By.CSS_SELECTOR, "input#fakeUserName"
     ERROR_WIN_LOCATOR = By.CSS_SELECTOR, "div#confirm-user-popup, div#alert-dialog-1"
+    DISMISS_ERROR_LOCATOR = By.CSS_SELECTOR, "input.button.nicebutton.left-oriented, div.alphacube_close"
     RES_SUMMARY_LOCATOR = By.LINK_TEXT, "Reservation Summary"
     RES_CONFIRM_LOCATOR = By.CSS_SELECTOR, "input.btn-confirm-reservation-summary"
     RES_CANCEL_LOCATOR = By.LINK_TEXT, "Cancel Reservation"
@@ -72,7 +73,7 @@ class PacControl(AbstractContextManager["PacControl"]):
         self.loggedIn = False
         self.reservationStarted = False
         self.found: CourtAndTime | None = None
-        self.reserved = False
+        self.playerHasAlreadyReserved = False
         self.retryLater = False
         self.playerItr: Iterator[User] | None = None
         try:
@@ -86,12 +87,15 @@ class PacControl(AbstractContextManager["PacControl"]):
             raise PacException(f"Unable to open file {e.filename} from {getcwd()}.") from e
         except ValueError as e:
             raise PacException(", ".join(e.args)) from e
+        self.player1 = self.players.people[0].nickname
+        self.player2: str | None = None
     # end __init__(PacArgs)
 
     def getReqSummary(self) -> str:
         return (f"Requesting {self.preferredCourts.courtsInPreferredOrder[0].name} "
                 f"at {self.preferredTimes.timesInPreferredOrder[0].strWithDate(self.requestDate)} "
-                f"for {' and '.join(p.nickname for p in self.players.people)}"
+                f"for {self.player1} and "
+                f"{' or '.join(p.nickname for p in self.players.people[1:])}"
                 f"{' in show mode' if self.showMode else ''}"
                 f"{' in test mode' if self.testMode else ''}.")
     # end getReqSummary()
@@ -100,7 +104,8 @@ class PacControl(AbstractContextManager["PacControl"]):
         if self.found:
             return (f"Found {self.found.court.name} available "
                     f"for {self.found.courtTime.duration} minutes "
-                    f"starting at {self.found.courtTime.strWithDate(self.requestDate)}.")
+                    f"starting at {self.found.courtTime.strWithDate(self.requestDate)} "
+                    f"for {self.player1} and {self.player2}.")
         else:
             return PacControl.NO_COURTS_MSG
     # end getFoundSummary()
@@ -171,17 +176,21 @@ class PacControl(AbstractContextManager["PacControl"]):
             "Timed out waiting to " + doingMsg)
     # end waitOutLoadingSplash(str)
 
-    def clickAndLoad(self, action: str, locator: tuple[str, str]) -> None:
+    def clickAndLoad(self, action: str, locator: tuple[str, str],
+                     searchCtx: WebElement | None = None) -> None:
         """Click a located element, then wait for loading splash screen to hide"""
         doingMsg = "request " + action
         try:
-            self.findElement(locator).click()
+            if searchCtx:
+                searchCtx.find_element(*locator).click()
+            else:
+                self.findElement(locator).click()
 
             doingMsg = "load " + action
             self.waitOutLoadingSplash(doingMsg)
         except WebDriverException as e:
             raise PacException.fromXcp(doingMsg, e) from e
-    # end clickAndLoad(str, tuple[str, str])
+    # end clickAndLoad(str, tuple[str, str], WebElement | None)
 
     def navigateToSchedule(self) -> None:
         doingMsg = "read initial schedule date"
@@ -199,21 +208,26 @@ class PacControl(AbstractContextManager["PacControl"]):
                 doingMsg = "load selected schedule date"
                 self.waitOutLoadingSplash(doingMsg)
             # end if
-
-            self.clickAndLoad("reserve court on schedule page", PacControl.RESERVE_LOCATOR_B)
-            self.reservationStarted = True
         except WebDriverException as e:
             raise PacException.fromXcp(doingMsg, e) from e
     # end navigateToSchedule()
 
+    def startReservation(self):
+        self.clickAndLoad("reserve court on schedule page", PacControl.RESERVE_LOCATOR_B)
+        self.reservationStarted = True
+    # end startReservation()
+
     def addPlayers(self) -> None:
         try:
-            while player := next(self.playerItr, None):
+            if player := next(self.playerItr, None):
+                self.playerHasAlreadyReserved = False
                 self.addPlayer(player.username)
                 WebDriverWait(self.webDriver, 15).until(
                     element_to_be_clickable(PacControl.ADD_NAME_LOCATOR),
                     "Timed out waiting for player entry field")
-            # end while
+                self.player2 = player.nickname
+            else:
+                raise PacException("Need another player for reservation")
         except WebDriverException as e:
             raise PacException.fromXcp("see updated player list", e) from e
     # end addPlayers()
@@ -308,16 +322,30 @@ class PacControl(AbstractContextManager["PacControl"]):
 
     def handleErrorWindow(self, unableMsg: str) -> None:
         """Look for an error window;
-            can be caused by looking too early on a future day
+            can be caused by looking too early on a future day,
+            by listing a player who has a reservation around the same time
             and by looking earlier than run time on run day"""
-        errWins = self.webDriver.find_elements(*PacControl.ERROR_WIN_LOCATOR)
+        errWins: list[WebElement] = self.webDriver.find_elements(*PacControl.ERROR_WIN_LOCATOR)
 
         if errWins:
-            trueErrWins = [errWin for errWin in errWins if errWin.is_displayed()]
+            errWinMsgs: list[str] = []
 
-            if trueErrWins:
-                raise PacException.fromAlert(
-                    unableMsg, "; ".join(errWin.text for errWin in trueErrWins))
+            for errWin in errWins:
+                if errWin.is_displayed():
+                    errorMsg = errWin.text
+
+                    if "has already reserved" in errorMsg \
+                            or "minutes between reservations" in errorMsg:
+                        self.playerHasAlreadyReserved = True
+                        logging.warning(errorMsg)
+                        self.clickAndLoad("dismiss error",
+                                          PacControl.DISMISS_ERROR_LOCATOR, errWin)
+                        self.cancelPendingReservation()
+                    else:
+                        errWinMsgs.append(errorMsg)
+
+            if errWinMsgs:
+                raise PacException.fromAlert(unableMsg, "; ".join(errWinMsgs))
     # end handleErrorWindow(str)
 
     def reserveCourt(self) -> None:
@@ -326,23 +354,29 @@ class PacControl(AbstractContextManager["PacControl"]):
             self.clickAndLoad("reservation summary", PacControl.RES_SUMMARY_LOCATOR)
             self.handleErrorWindow(doingMsg)
 
-            if self.testMode:
-                butt = self.findElement(PacControl.RES_CONFIRM_LOCATOR)
-                logging.info(f"{butt.get_attribute('value')} enabled: {butt.is_enabled()}")
-            else:
-                self.clickAndLoad("confirm reservation", PacControl.RES_CONFIRM_LOCATOR)
-                self.reservationStarted = False
-                logging.info("Reservation confirmed")
+            if not self.needsToTryAgain():
+                if self.testMode:
+                    butt = self.findElement(PacControl.RES_CONFIRM_LOCATOR)
+                    logging.info(f"{butt.get_attribute('value')} enabled: {butt.is_enabled()}")
+                else:
+                    self.clickAndLoad("confirm reservation", PacControl.RES_CONFIRM_LOCATOR)
+                    self.reservationStarted = False
+                    logging.info("Reservation confirmed")
         except WebDriverException as e:
             raise PacException.fromXcp(doingMsg, e) from e
     # end reserveCourt()
 
+    def needsToTryAgain(self) -> bool:
+        """Tell if there is any reason we need to try this reservation another time"""
+
+        return self.playerHasAlreadyReserved
+    # end needsToTryAgain()
+
     def cancelPendingReservation(self):
         self.clickAndLoad("cancel pending reservation", PacControl.RES_CANCEL_LOCATOR)
         self.reservationStarted = False
-        logging.info("Reservation not confirmed")
         # give us a chance to see reservation cancelled
-        sleep(0.25)
+        sleep(0.5)
     # end cancelPendingReservation()
 
     def __exit__(self, exc_type: Type[BaseException] | None,
@@ -352,6 +386,7 @@ class PacControl(AbstractContextManager["PacControl"]):
         try:
             if self.reservationStarted:
                 self.cancelPendingReservation()
+                logging.info("Reservation not confirmed")
         finally:
             if self.loggedIn:
                 self.logOut()

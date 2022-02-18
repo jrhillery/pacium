@@ -60,12 +60,20 @@ if __name__ == "__main__":
             pacCtrl.logIn()
             pacCtrl.navigateToSchedule()
 
-            if not cLArgs.showMode:
-                pacCtrl.addPlayers()
-                pacCtrl.selectAvailableCourt()
-                pacCtrl.reserveCourt()
+            if cLArgs.showMode:
+                sleep(20)
+            else:
+                needsReservation = True
+
+                while needsReservation:
+                    pacCtrl.startReservation()
+                    pacCtrl.addPlayers()
+                    pacCtrl.selectAvailableCourt()
+                    pacCtrl.reserveCourt()
+                    needsReservation = pacCtrl.needsToTryAgain()
+                # end while
                 logging.info(pacCtrl.getFoundSummary())
-            sleep(9)
+                sleep(9)
         # end with
     except PacException as xcpt:
         logging.error(xcpt)
