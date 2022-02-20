@@ -122,11 +122,6 @@ class PacControl(AbstractContextManager["PacControl"]):
             raise PacException.fromXcp("open browser", e) from e
     # end openBrowser()
 
-    def findElement(self, locator: tuple[str, str]) -> WebElement:
-
-        return self.webDriver.find_element(*locator)
-    # end findElement(tuple[str, str])
-
     def logIn(self) -> None:
         """Log-in to Prosperity Athletic Club home page"""
         doingMsg = "open log-in page " + PacControl.PAC_LOG_IN
@@ -134,7 +129,7 @@ class PacControl(AbstractContextManager["PacControl"]):
             self.webDriver.get(PacControl.PAC_LOG_IN)
 
             doingMsg = "find log-in form"
-            liForm = self.findElement(PacControl.LOGIN_FORM_LOCATOR)
+            liForm = self.webDriver.find_element(*PacControl.LOGIN_FORM_LOCATOR)
             self.playerItr = iter(self.players.people)
 
             doingMsg = "enter first username"
@@ -184,7 +179,7 @@ class PacControl(AbstractContextManager["PacControl"]):
             if searchCtx:
                 searchCtx.find_element(*locator).click()
             else:
-                self.findElement(locator).click()
+                self.webDriver.find_element(*locator).click()
 
             doingMsg = "load " + action
             self.waitOutLoadingSplash(doingMsg)
@@ -197,7 +192,8 @@ class PacControl(AbstractContextManager["PacControl"]):
         try:
             self.clickAndLoad("reserve court on home page", PacControl.RESERVE_LOCATOR_A)
 
-            schDate = self.findElement(PacControl.SCH_DATE_LOCATOR).get_attribute("value")
+            schDate = self.webDriver.find_element(
+                *PacControl.SCH_DATE_LOCATOR).get_attribute("value")
             diff = self.requestDate - datetime.strptime(schDate, "%m/%d/%Y").date()
 
             if diff:
@@ -238,7 +234,7 @@ class PacControl(AbstractContextManager["PacControl"]):
         try:
             while True:
                 doingMsg = "key-in player for reservation"
-                inputFld = self.findElement(PacControl.ADD_NAME_LOCATOR)
+                inputFld = self.webDriver.find_element(*PacControl.ADD_NAME_LOCATOR)
                 inputFld.clear()
                 inputFld.send_keys(playerName)
 
@@ -326,26 +322,25 @@ class PacControl(AbstractContextManager["PacControl"]):
             by listing a player who has a reservation around the same time
             and by looking earlier than run time on run day"""
         errWins: list[WebElement] = self.webDriver.find_elements(*PacControl.ERROR_WIN_LOCATOR)
+        errWinMsgs: list[str] = []
 
-        if errWins:
-            errWinMsgs: list[str] = []
+        for errWin in errWins:
+            if errWin.is_displayed():
+                errorMsg = errWin.text
 
-            for errWin in errWins:
-                if errWin.is_displayed():
-                    errorMsg = errWin.text
+                if "has already reserved" in errorMsg \
+                        or "minutes between reservations" in errorMsg:
+                    self.playerHasAlreadyReserved = True
+                    logging.warning(errorMsg)
+                    self.clickAndLoad(
+                        "dismiss error", PacControl.DISMISS_ERROR_LOCATOR, errWin)
+                    self.cancelPendingReservation()
+                else:
+                    errWinMsgs.append(errorMsg)
+        # end for
 
-                    if "has already reserved" in errorMsg \
-                            or "minutes between reservations" in errorMsg:
-                        self.playerHasAlreadyReserved = True
-                        logging.warning(errorMsg)
-                        self.clickAndLoad("dismiss error",
-                                          PacControl.DISMISS_ERROR_LOCATOR, errWin)
-                        self.cancelPendingReservation()
-                    else:
-                        errWinMsgs.append(errorMsg)
-
-            if errWinMsgs:
-                raise PacException.fromAlert(unableMsg, "; ".join(errWinMsgs))
+        if errWinMsgs:
+            raise PacException.fromAlert(unableMsg, "; ".join(errWinMsgs))
     # end handleErrorWindow(str)
 
     def reserveCourt(self) -> None:
@@ -356,7 +351,7 @@ class PacControl(AbstractContextManager["PacControl"]):
 
             if not self.needsToTryAgain():
                 if self.testMode:
-                    butt = self.findElement(PacControl.RES_CONFIRM_LOCATOR)
+                    butt = self.webDriver.find_element(*PacControl.RES_CONFIRM_LOCATOR)
                     logging.info(f"{butt.get_attribute('value')} enabled: {butt.is_enabled()}")
                 else:
                     self.clickAndLoad("confirm reservation", PacControl.RES_CONFIRM_LOCATOR)
