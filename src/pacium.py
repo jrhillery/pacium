@@ -67,7 +67,7 @@ if __name__ == "__main__":
 
                 while needsReservation:
                     pacCtrl.startReservation()
-                    pacCtrl.addPlayers()
+                    pacCtrl.addPlayer()
                     pacCtrl.selectAvailableCourt()
                     pacCtrl.reserveCourt()
                     needsReservation = pacCtrl.needsToTryAgain()

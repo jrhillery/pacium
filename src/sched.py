@@ -74,7 +74,6 @@ class PacControl(AbstractContextManager["PacControl"]):
         self.reservationStarted = False
         self.found: CourtAndTime | None = None
         self.playerHasAlreadyReserved = False
-        self.retryLater = False
         self.playerItr: Iterator[User] | None = None
         try:
             self.preferredCourts = Courts.load(args.preferredCourts)
@@ -213,11 +212,11 @@ class PacControl(AbstractContextManager["PacControl"]):
         self.reservationStarted = True
     # end startReservation()
 
-    def addPlayers(self) -> None:
+    def addPlayer(self) -> None:
         try:
             if player := next(self.playerItr, None):
                 self.playerHasAlreadyReserved = False
-                self.addPlayer(player.username)
+                self.selectPlayer(player.username)
                 WebDriverWait(self.webDriver, 15).until(
                     element_to_be_clickable(PacControl.ADD_NAME_LOCATOR),
                     "Timed out waiting for player entry field")
@@ -226,9 +225,9 @@ class PacControl(AbstractContextManager["PacControl"]):
                 raise PacException("Need another player for reservation")
         except WebDriverException as e:
             raise PacException.fromXcp("see updated player list", e) from e
-    # end addPlayers()
+    # end addPlayer()
 
-    def addPlayer(self, playerName: str) -> None:
+    def selectPlayer(self, playerName: str) -> None:
         retrys = 0
         doingMsg = ""
         try:
@@ -256,7 +255,7 @@ class PacControl(AbstractContextManager["PacControl"]):
             # end while
         except WebDriverException as e:
             raise PacException.fromXcp(doingMsg, e) from e
-    # end addPlayer(str)
+    # end selectPlayer(str)
 
     def findSchBlock(self, court: Court, timeRow: str) -> WebElement:
         return self.webDriver.find_element(
@@ -294,7 +293,6 @@ class PacControl(AbstractContextManager["PacControl"]):
             # this alert can be caused by looking too many days in the future
             alertText = alert.text
             alert.dismiss()
-            self.retryLater = True
 
             raise PacException.fromAlert(unableMsg, alertText)
         except NoAlertPresentException:
