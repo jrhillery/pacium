@@ -3,7 +3,7 @@ import logging
 from logging.config import dictConfig
 
 from pacargs import PacArgs
-from sched import PacControl, PacException
+from paccontrol import PacControl, PacException
 
 
 def configLogging(testLog: bool):
@@ -35,7 +35,7 @@ def configLogging(testLog: bool):
                 "formatter": "detail",
                 "filename": "pacium.tst.log" if testLog else "pacium.log",
                 "maxBytes": 30000,
-                "backupCount": 2,
+                "backupCount": 1,
                 "encoding": "utf-8"
             }
         },
