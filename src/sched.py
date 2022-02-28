@@ -387,4 +387,27 @@ class PacControl(AbstractContextManager["PacControl"]):
         return None
     # end __exit__(Type[BaseException] | None, BaseException | None, TracebackType | None)
 
+    def main(self):
+        logging.info(self.getReqSummary())
+        with self.openBrowser(), self:
+            self.logIn()
+            self.navigateToSchedule()
+
+            if self.showMode:
+                sleep(20)
+            else:
+                needsReservation = True
+
+                while needsReservation:
+                    self.startReservation()
+                    self.addPlayer()
+                    self.selectAvailableCourt()
+                    self.reserveCourt()
+                    needsReservation = self.needsToTryAgain()
+                # end while
+                logging.info(self.getFoundSummary())
+                sleep(9)
+        # end with
+    # end main()
+
 # end class PacControl

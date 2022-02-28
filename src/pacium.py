@@ -2,8 +2,6 @@
 import logging
 from logging.config import dictConfig
 
-from time import sleep
-
 from pacargs import PacArgs
 from sched import PacControl, PacException
 
@@ -54,27 +52,7 @@ if __name__ == "__main__":
     configLogging(cLArgs.showMode or cLArgs.testMode)
     try:
         pacCtrl = PacControl(cLArgs)
-        logging.info(pacCtrl.getReqSummary())
-
-        with pacCtrl.openBrowser(), pacCtrl:
-            pacCtrl.logIn()
-            pacCtrl.navigateToSchedule()
-
-            if cLArgs.showMode:
-                sleep(20)
-            else:
-                needsReservation = True
-
-                while needsReservation:
-                    pacCtrl.startReservation()
-                    pacCtrl.addPlayer()
-                    pacCtrl.selectAvailableCourt()
-                    pacCtrl.reserveCourt()
-                    needsReservation = pacCtrl.needsToTryAgain()
-                # end while
-                logging.info(pacCtrl.getFoundSummary())
-                sleep(9)
-        # end with
+        pacCtrl.main()
     except PacException as xcpt:
         logging.error(xcpt)
         logging.debug("Exception suppressed:", exc_info=xcpt)
