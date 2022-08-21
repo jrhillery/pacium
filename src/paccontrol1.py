@@ -1,7 +1,7 @@
 
 import logging
 from contextlib import AbstractContextManager
-from datetime import datetime, timedelta
+from datetime import datetime
 from os import getcwd
 from time import sleep
 from types import TracebackType
@@ -52,17 +52,15 @@ class PacException(Exception):
 
 class PacControl(AbstractContextManager["PacControl"]):
     """Controls Prosperity Athletic Club web pages"""
-    PAC_LOG_IN = "https://app.courtreserve.com/"
-    PAC_LOG_OUT = "/Online/Account/LogOut/7319"
+    PAC_LOG_IN = "https://crcn.clubautomation.com"
+    PAC_LOG_OUT = "/user/logout"
     NO_COURTS_MSG = "No available courts found"
-    LOGIN_FORM_LOCATOR = By.CSS_SELECTOR, "form#loginForm"
-    USERNAME_LOCATOR = By.CSS_SELECTOR, "input#Username"
-    RESERVE_LOCATOR_A = By.LINK_TEXT, "Reservations"
+    LOGIN_FORM_LOCATOR = By.CSS_SELECTOR, "form#caSignInLoginForm, form#signin_login_form"
+    USERNAME_LOCATOR = By.NAME, "login"
+    RESERVE_LOCATOR_A = By.LINK_TEXT, "Reserve a Court"
     LOADING_SPLASH_LOCATOR = By.CSS_SELECTOR, "div#ui-id-1"
-    RESERVE_LOCATOR_B = By.LINK_TEXT, "Book a Court"
-    SCH_DATE_LOCATOR = By.CSS_SELECTOR, "span.k-lg-date-format"
-    NEXT_DAY_LOCATOR = By.CSS_SELECTOR, "button.k-nav-next"
-    ONE_DAY = timedelta(days=1)
+    SCH_DATE_LOCATOR = By.CSS_SELECTOR, "input#date"
+    RESERVE_LOCATOR_B = By.CSS_SELECTOR, "a#reserve-permanent-member-button"
     ADD_NAME_LOCATOR = By.CSS_SELECTOR, "input#fakeUserName"
     ERROR_WIN_LOCATOR = By.CSS_SELECTOR, "div#confirm-user-popup, div#alert-dialog-1"
     DISMISS_ERROR_LOCATOR = By.CSS_SELECTOR, "input.button.nicebutton.left-oriented, div.alphacube_close"
@@ -191,23 +189,26 @@ class PacControl(AbstractContextManager["PacControl"]):
     def navigateToSchedule(self) -> None:
         doingMsg = "read initial schedule date"
         try:
-            self.clickAndLoad("select reservations on home page", PacControl.RESERVE_LOCATOR_A)
-            self.clickAndLoad("book a court on home page", PacControl.RESERVE_LOCATOR_B)
+            self.clickAndLoad("reserve court on home page", PacControl.RESERVE_LOCATOR_A)
 
             schDate = self.webDriver.find_element(
-                *PacControl.SCH_DATE_LOCATOR).get_attribute("innerText")
-            diff = self.requestDate - datetime.strptime(schDate, "%A, %B %d, %Y").date()
+                *PacControl.SCH_DATE_LOCATOR).get_attribute("value")
+            diff = self.requestDate - datetime.strptime(schDate, "%m/%d/%Y").date()
 
-            while diff:
+            if diff:
                 doingMsg = f"request date {self.requestDate} on schedule in {diff}"
-                self.clickAndLoad(doingMsg, PacControl.NEXT_DAY_LOCATOR)
-                diff -= PacControl.ONE_DAY
-            # end while
+                self.webDriver.execute_script(
+                    f"calendarAddDay($('date'), {diff.days}, 'mm/dd/yyyy');")
+
+                doingMsg = "load selected schedule date"
+                self.waitOutLoadingSplash(doingMsg)
+            # end if
         except WebDriverException as e:
             raise PacException.fromXcp(doingMsg, e) from e
     # end navigateToSchedule()
 
     def startReservation(self):
+        self.clickAndLoad("reserve court on schedule page", PacControl.RESERVE_LOCATOR_B)
         self.reservationStarted = True
     # end startReservation()
 
