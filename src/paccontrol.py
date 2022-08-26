@@ -69,11 +69,11 @@ class PacControl(AbstractContextManager["PacControl"]):
     RES_DURATION_LOCATOR = By.CSS_SELECTOR, "span[aria-controls='Duration_listbox']"
     RES_DURATION_ITEM_LOCATOR = By.CSS_SELECTOR, "ul#Duration_listbox > li"
     ADD_NAME_LOCATOR = By.CSS_SELECTOR, "input[name='OwnersDropdown_input']"
+    ADD_NAME_ITEM_LOCATOR = By.CSS_SELECTOR, "ul#OwnersDropdown_listbox > li"
     ERROR_WIN_LOCATOR = By.CSS_SELECTOR, "div#confirm-user-popup, div#alert-dialog-1"
     DISMISS_ERROR_LOCATOR = By.CSS_SELECTOR, "input.button.nicebutton.left-oriented, div.alphacube_close"
-    RES_SUMMARY_LOCATOR = By.LINK_TEXT, "Reservation Summary"
-    RES_CONFIRM_LOCATOR = By.CSS_SELECTOR, "input.btn-confirm-reservation-summary"
-    RES_CANCEL_LOCATOR = By.CSS_SELECTOR, "button[type='reset']"
+    RES_CONFIRM_LOCATOR = By.CSS_SELECTOR, "form#createReservation-Form button.btn-submit"
+    RES_CANCEL_LOCATOR = By.CSS_SELECTOR, "form#createReservation-Form button[type='reset']"
 
     def __init__(self, args: PacArgs):
         self.webDriver: WebDriver | None = None
@@ -220,9 +220,14 @@ class PacControl(AbstractContextManager["PacControl"]):
 
     def startReservation(self):
         self.reservationStarted = True
-        doingMsg = "select reservation type"
+        doingMsg = "select reservation type dropdown list"
         try:
-            self.clickAndLoad(doingMsg + " dropdown", PacControl.RES_TYPE_LOCATOR)
+            self.webDriver.find_element(*PacControl.RES_TYPE_LOCATOR).click()
+            WebDriverWait(self.webDriver, 15).until(
+                element_to_be_clickable(PacControl.RES_TYPE_ITEM_LOCATOR),
+                "Timed out waiting for reservation type dropdown list")
+
+            doingMsg = "select reservation type"
             htmlItems: list[WebElement] = self.webDriver.find_elements(*PacControl.RES_TYPE_ITEM_LOCATOR)
 
             for htmlItem in htmlItems:
@@ -230,8 +235,13 @@ class PacControl(AbstractContextManager["PacControl"]):
                     htmlItem.click()
                     break
             # end for
+            doingMsg = "select duration dropdown list"
+            self.webDriver.find_element(*PacControl.RES_DURATION_LOCATOR).click()
+            WebDriverWait(self.webDriver, 15).until(
+                element_to_be_clickable(PacControl.RES_DURATION_ITEM_LOCATOR),
+                "Timed out waiting for duration dropdown list")
+
             doingMsg = "select duration"
-            self.clickAndLoad(doingMsg + " dropdown", PacControl.RES_DURATION_LOCATOR)
             htmlItems = self.webDriver.find_elements(*PacControl.RES_DURATION_ITEM_LOCATOR)
             duration = "1 hour & 30 minutes" if self.found.courtTime.duration == 90 else \
                 "1 hour" if self.found.courtTime.duration == 60 else "30 minutes"
@@ -272,15 +282,21 @@ class PacControl(AbstractContextManager["PacControl"]):
 
                 try:
                     doingMsg = "find player"
-                    playerLnk: WebElement = WebDriverWait(self.webDriver, 15).until(
-                        element_to_be_clickable((By.LINK_TEXT, playerName)),
+                    WebDriverWait(self.webDriver, 15).until(
+                        element_to_be_clickable(PacControl.ADD_NAME_ITEM_LOCATOR),
                         f"Timed out waiting for {playerName} in list")
 
                     doingMsg = f"add player {playerName} to reservation"
-                    playerLnk.click()
+                    htmlItems = self.webDriver.find_elements(*PacControl.ADD_NAME_ITEM_LOCATOR)
 
-                    # found the player, stop retrying
-                    break
+                    for htmlItem in htmlItems:
+                        if htmlItem.text == playerName:
+                            # found the player, stop retrying
+                            htmlItem.click()
+                            return
+                    # end for
+
+                    raise PacException(f"Unable to find player {playerName}")
                 except TimeoutException as e:
                     if (retrys := retrys + 1) == 3:
                         raise e
@@ -383,13 +399,10 @@ class PacControl(AbstractContextManager["PacControl"]):
     def reserveCourt(self) -> None:
         doingMsg = "verify reservation is good"
         try:
-            self.clickAndLoad("reservation summary", PacControl.RES_SUMMARY_LOCATOR)
-            self.handleErrorWindow(doingMsg)
-
             if not self.needsToTryAgain():
                 if self.testMode:
                     butt = self.webDriver.find_element(*PacControl.RES_CONFIRM_LOCATOR)
-                    logging.info(f"{butt.get_attribute('value')} enabled: {butt.is_enabled()}")
+                    logging.info(f"{butt.get_attribute('innerText')} enabled: {butt.is_enabled()}")
                 else:
                     self.clickAndLoad("confirm reservation", PacControl.RES_CONFIRM_LOCATOR)
                     self.reservationStarted = False
