@@ -200,11 +200,16 @@ class PacControl(AbstractContextManager["PacControl"]):
     # end mouseOver(str, tuple[str, str], WebElement | None)
 
     def navigateToSchedule(self) -> None:
-        doingMsg = "read initial schedule date"
+        doingMsg = "book a court on home page"
         try:
             self.mouseOver("open reservations on home page", PacControl.RESERVE_LOCATOR_A)
-            self.clickAndLoad("book a court on home page", PacControl.RESERVE_LOCATOR_B)
 
+            self.webDriver.find_element(*PacControl.RESERVE_LOCATOR_B).click()
+            WebDriverWait(self.webDriver, 15).until(
+                element_to_be_clickable(PacControl.NEXT_DAY_LOCATOR),
+                "Timed out waiting to open court schedule page")
+
+            doingMsg = "read initial schedule date"
             schDate = self.webDriver.find_element(
                 *PacControl.SCH_DATE_LOCATOR).get_attribute("innerText")
             diff = self.requestDate - datetime.strptime(schDate, "%A, %B %d, %Y").date()
