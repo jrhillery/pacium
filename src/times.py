@@ -12,6 +12,7 @@ class CourtTime(NamedTuple):
     startTime: time
     duration: int
     DT_FORMAT = "%I:%M %p %a %b %d, %Y"
+    THIRTY_MINUTES = timedelta(minutes=30)
 
     def strWithDate(self, dt: date) -> str:
         cDt = datetime.combine(dt, self.startTime)
@@ -29,11 +30,26 @@ class CourtTime(NamedTuple):
         while rTime < endTime:
             # colons need to be escaped in CSS selectors
             tRows.append(rTime.time().isoformat(timespec="minutes").replace(":", "\:"))
-            rTime += timedelta(minutes=30)
+            rTime += CourtTime.THIRTY_MINUTES
         # end while
 
         return tRows
     # end getTimeRows()
+
+    def getStartTimesForDate(self, dt: date) -> list[str]:
+        """Return the start timestamp portions of the schedule table CSS selectors"""
+        rTime = datetime.combine(dt, self.startTime)
+        endTime = rTime + timedelta(minutes=self.duration)
+        startTimes: list[str] = []
+
+        while rTime < endTime:
+            # example: Wed Aug 24 2022 09:00:00
+            startTimes.append(rTime.strftime("%a %b %d %Y %H:%M:%S "))
+            rTime += CourtTime.THIRTY_MINUTES
+        # end while
+
+        return startTimes
+    # end getStartTimesForDate(date)
 
 # end class CourtTime
 
@@ -107,4 +123,5 @@ if __name__ == "__main__":
 
     for cTime in readBack.timesInPreferredOrder:
         print("time rows", cTime.getTimeRows())
+        print("start times", cTime.getStartTimesForDate(CourtTimes.nextDateForDay("Wed")))
 # end if

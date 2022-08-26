@@ -49,9 +49,9 @@ def decodeCourts(jsonDict: dict):
 
 
 if __name__ == "__main__":
-    data = Courts([Court("Court 1", "178"),
-                   Court("Court 3", "180"),
-                   Court("Court 12", "189")])
+    data = Courts([Court("Court #1", "178"),
+                   Court("Court #3", "180"),
+                   Court("Court #12", "189")])
     dFileNm = Path("data.json")
     data.save(dFileNm)
 

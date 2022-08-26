@@ -3,21 +3,22 @@ import logging
 from contextlib import AbstractContextManager
 from datetime import datetime, timedelta
 from os import getcwd
-from time import sleep
 from types import TracebackType
 from typing import Iterator, NamedTuple, Type
 from urllib.parse import urljoin
 
 from selenium import webdriver
 from selenium.common.exceptions import (
-    NoAlertPresentException, TimeoutException, WebDriverException)
+    InvalidSelectorException, NoAlertPresentException, TimeoutException, WebDriverException)
+from selenium.webdriver import ActionChains
 from selenium.webdriver.chrome.webdriver import WebDriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.remote.webelement import WebElement
 from selenium.webdriver.support.expected_conditions import (
-    element_to_be_clickable, invisibility_of_element_located)
+    element_to_be_clickable, invisibility_of_element_located, visibility_of_element_located)
 from selenium.webdriver.support.wait import WebDriverWait
+from time import sleep
 
 from courts import Court, Courts
 from pacargs import PacArgs
@@ -28,6 +29,7 @@ from times import CourtTime, CourtTimes
 class CourtAndTime(NamedTuple):
     court: Court
     courtTime: CourtTime
+    startTime: str
 
 # end class CourtAndTime
 
@@ -58,17 +60,20 @@ class PacControl(AbstractContextManager["PacControl"]):
     LOGIN_FORM_LOCATOR = By.CSS_SELECTOR, "form#loginForm"
     USERNAME_LOCATOR = By.CSS_SELECTOR, "input#Username"
     RESERVE_LOCATOR_A = By.LINK_TEXT, "Reservations"
-    LOADING_SPLASH_LOCATOR = By.CSS_SELECTOR, "div#ui-id-1"
     RESERVE_LOCATOR_B = By.LINK_TEXT, "Book a Court"
     SCH_DATE_LOCATOR = By.CSS_SELECTOR, "span.k-lg-date-format"
     NEXT_DAY_LOCATOR = By.CSS_SELECTOR, "button.k-nav-next"
     ONE_DAY = timedelta(days=1)
-    ADD_NAME_LOCATOR = By.CSS_SELECTOR, "input#fakeUserName"
+    RES_TYPE_LOCATOR = By.CSS_SELECTOR, "span[aria-controls='ReservationTypeId_listbox']"
+    RES_TYPE_ITEM_LOCATOR = By.CSS_SELECTOR, "ul#ReservationTypeId_listbox > li"
+    RES_DURATION_LOCATOR = By.CSS_SELECTOR, "span[aria-controls='Duration_listbox']"
+    RES_DURATION_ITEM_LOCATOR = By.CSS_SELECTOR, "ul#Duration_listbox > li"
+    ADD_NAME_LOCATOR = By.CSS_SELECTOR, "input[name='OwnersDropdown_input']"
     ERROR_WIN_LOCATOR = By.CSS_SELECTOR, "div#confirm-user-popup, div#alert-dialog-1"
     DISMISS_ERROR_LOCATOR = By.CSS_SELECTOR, "input.button.nicebutton.left-oriented, div.alphacube_close"
     RES_SUMMARY_LOCATOR = By.LINK_TEXT, "Reservation Summary"
     RES_CONFIRM_LOCATOR = By.CSS_SELECTOR, "input.btn-confirm-reservation-summary"
-    RES_CANCEL_LOCATOR = By.LINK_TEXT, "Cancel Reservation"
+    RES_CANCEL_LOCATOR = By.CSS_SELECTOR, "button[type='reset']"
 
     def __init__(self, args: PacArgs):
         self.webDriver: WebDriver | None = None
@@ -165,33 +170,39 @@ class PacControl(AbstractContextManager["PacControl"]):
             raise PacException.fromXcp("log-out via " + loUrl, e) from e
     # end logOut()
 
-    def waitOutLoadingSplash(self, doingMsg: str) -> None:
-        """Wait for loading splash screen to hide"""
-        WebDriverWait(self.webDriver, 15).until(
-            invisibility_of_element_located(PacControl.LOADING_SPLASH_LOCATOR),
-            "Timed out waiting to " + doingMsg)
-    # end waitOutLoadingSplash(str)
-
-    def clickAndLoad(self, action: str, locator: tuple[str, str],
+    def clickAndLoad(self, unableMsg: str, locator: tuple[str, str],
                      searchCtx: WebElement | None = None) -> None:
-        """Click a located element, then wait for loading splash screen to hide"""
-        doingMsg = "request " + action
+        """Click a located element"""
+        if not searchCtx:
+            searchCtx = self.webDriver
         try:
-            if searchCtx:
-                searchCtx.find_element(*locator).click()
-            else:
-                self.webDriver.find_element(*locator).click()
+            action = ActionChains(self.webDriver)
+            action.click(searchCtx.find_element(*locator))
+            action.perform()
 
-            doingMsg = "load " + action
-            self.waitOutLoadingSplash(doingMsg)
+            # can't seem to automate the loading splash spinner, so just wait a fixed time
+            sleep(4)
         except WebDriverException as e:
-            raise PacException.fromXcp(doingMsg, e) from e
+            raise PacException.fromXcp(unableMsg, e) from e
     # end clickAndLoad(str, tuple[str, str], WebElement | None)
+
+    def mouseOver(self, unableMsg: str, locator: tuple[str, str],
+                  searchCtx: WebElement | None = None) -> None:
+        """Hover mouse over a located element"""
+        if not searchCtx:
+            searchCtx = self.webDriver
+        try:
+            action = ActionChains(self.webDriver)
+            action.move_to_element(searchCtx.find_element(*locator))
+            action.perform()
+        except WebDriverException as e:
+            raise PacException.fromXcp(unableMsg, e) from e
+    # end mouseOver(str, tuple[str, str], WebElement | None)
 
     def navigateToSchedule(self) -> None:
         doingMsg = "read initial schedule date"
         try:
-            self.clickAndLoad("select reservations on home page", PacControl.RESERVE_LOCATOR_A)
+            self.mouseOver("open reservations on home page", PacControl.RESERVE_LOCATOR_A)
             self.clickAndLoad("book a court on home page", PacControl.RESERVE_LOCATOR_B)
 
             schDate = self.webDriver.find_element(
@@ -209,6 +220,29 @@ class PacControl(AbstractContextManager["PacControl"]):
 
     def startReservation(self):
         self.reservationStarted = True
+        doingMsg = "select reservation type"
+        try:
+            self.clickAndLoad(doingMsg + " dropdown", PacControl.RES_TYPE_LOCATOR)
+            htmlItems: list[WebElement] = self.webDriver.find_elements(*PacControl.RES_TYPE_ITEM_LOCATOR)
+
+            for htmlItem in htmlItems:
+                if htmlItem.text == "Singles":
+                    htmlItem.click()
+                    break
+            # end for
+            doingMsg = "select duration"
+            self.clickAndLoad(doingMsg + " dropdown", PacControl.RES_DURATION_LOCATOR)
+            htmlItems = self.webDriver.find_elements(*PacControl.RES_DURATION_ITEM_LOCATOR)
+            duration = "1 hour & 30 minutes" if self.found.courtTime.duration == 90 else \
+                "1 hour" if self.found.courtTime.duration == 60 else "30 minutes"
+
+            for htmlItem in htmlItems:
+                if htmlItem.text == duration:
+                    htmlItem.click()
+                    break
+            # end for
+        except WebDriverException as e:
+            raise PacException.fromXcp(doingMsg, e) from e
     # end startReservation()
 
     def addPlayer(self) -> None:
@@ -256,27 +290,32 @@ class PacControl(AbstractContextManager["PacControl"]):
             raise PacException.fromXcp(doingMsg, e) from e
     # end selectPlayer(str)
 
-    def findSchBlock(self, court: Court, timeRow: str) -> WebElement:
-        return self.webDriver.find_element(
-            By.CSS_SELECTOR, f"td#court_{court.tId}_row_{timeRow}")
+    def findSchBlock(self, court: Court, startTime: str) -> WebElement:
+        # <button start="Wed Aug 24 2022 09:00:00 GMT-0400 (Eastern Daylight Time)" courtlabel="Court #3"
+        # class="btn btn-default hide btn-expanded-slot slot-btn m-auto">Reserve</button>
+        selector = f"button[start^='{startTime}'][courtlabel='{court.name}']"
+        try:
+            return self.webDriver.find_element(By.CSS_SELECTOR, selector)
+        except InvalidSelectorException as e:
+            raise InvalidSelectorException(f"{e.msg} {{{selector}}}", e.screen, e.stacktrace)
     # end findSchBlock(Court, str)
 
-    def blockAvailable(self, court: Court, timeRow: str) -> bool:
+    def blockAvailable(self, court: Court, startTime: str) -> bool:
         """Return True when the specified schedule block is available"""
-        schBlock = self.findSchBlock(court, timeRow)
+        schBlock = self.findSchBlock(court, startTime)
 
-        return "notenabled" not in schBlock.get_attribute("class")
+        return "hide" not in schBlock.get_attribute("class")
     # end blockAvailable(Court, str)
 
     def findFirstAvailableCourt(self) -> CourtAndTime:
         for courtTime in self.preferredTimes.timesInPreferredOrder:
-            timeRows = courtTime.getTimeRows()
+            startTimes = courtTime.getStartTimesForDate(self.requestDate)
 
             for court in self.preferredCourts.courtsInPreferredOrder:
 
-                if all(self.blockAvailable(court, tr) for tr in timeRows):
+                if all(self.blockAvailable(court, st) for st in startTimes):
 
-                    return CourtAndTime(court, courtTime)
+                    return CourtAndTime(court, courtTime, startTimes[0])
             # end for
         # end for
 
@@ -304,11 +343,12 @@ class PacControl(AbstractContextManager["PacControl"]):
         try:
             self.found = self.findFirstAvailableCourt()
 
-            doingMsg = "select court time block"
-            for timeRow in self.found.courtTime.getTimeRows():
-                self.findSchBlock(self.found.court, timeRow).click()
-                self.handleAlert(doingMsg)
-            # end for
+            doingMsg = "select court start time"
+            self.findSchBlock(self.found.court, self.found.startTime).click()
+
+            WebDriverWait(self.webDriver, 15).until(
+                element_to_be_clickable(PacControl.RES_TYPE_LOCATOR),
+                "Timed out waiting to open reservation dialog")
         except WebDriverException as e:
             raise PacException.fromXcp(doingMsg, e) from e
     # end selectAvailableCourt()
@@ -398,9 +438,9 @@ class PacControl(AbstractContextManager["PacControl"]):
                 needsReservation = True
 
                 while needsReservation:
+                    self.selectAvailableCourt()
                     self.startReservation()
                     self.addPlayer()
-                    self.selectAvailableCourt()
                     self.reserveCourt()
                     needsReservation = self.needsToTryAgain()
                 # end while
