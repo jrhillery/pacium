@@ -70,8 +70,8 @@ class PacControl(AbstractContextManager["PacControl"]):
     RES_DURATION_ITEM_LOCATOR = By.CSS_SELECTOR, "ul#Duration_listbox > li"
     ADD_NAME_LOCATOR = By.CSS_SELECTOR, "input[name='OwnersDropdown_input']"
     ADD_NAME_ITEM_LOCATOR = By.CSS_SELECTOR, "ul#OwnersDropdown_listbox > li"
-    ERROR_WIN_LOCATOR = By.CSS_SELECTOR, "div.swal2-icon-error"
-    DISMISS_ERROR_LOCATOR = By.CSS_SELECTOR, "button.swal2-confirm"
+    ERROR_WIN_LOCATOR = By.CSS_SELECTOR, "div.swal2-icon-error, div#error-modal"
+    DISMISS_ERROR_LOCATOR = By.CSS_SELECTOR, "button.swal2-confirm, button[type='reset']"
     RES_CONFIRM_LOCATOR = By.CSS_SELECTOR, "form#createReservation-Form button.btn-submit"
     RES_CANCEL_LOCATOR = By.CSS_SELECTOR, "form#createReservation-Form button[type='reset']"
 
@@ -371,15 +371,15 @@ class PacControl(AbstractContextManager["PacControl"]):
                 "Timed out waiting to open reservation dialog")
             self.reservationStarted = True
         except WebDriverException as e:
+            self.handleErrorWindow(doingMsg)
+
             raise PacException.fromXcp(doingMsg, e) from e
     # end selectAvailableCourt()
 
     def handleErrorWindow(self, unableMsg: str) -> None:
         """Look for an error window;
             can be caused by looking too far in the future,
-            by looking too early on a future day,
-            by listing a player who has a reservation around the same time
-            and by looking earlier than run time on run day"""
+            and by listing a player who has a reservation around the same time"""
         errWins: list[WebElement] = self.webDriver.find_elements(*PacControl.ERROR_WIN_LOCATOR)
         errWinMsgs: list[str] = []
 
