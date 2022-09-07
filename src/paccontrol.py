@@ -70,8 +70,8 @@ class PacControl(AbstractContextManager["PacControl"]):
     RES_DURATION_ITEM_LOCATOR = By.CSS_SELECTOR, "ul#Duration_listbox > li"
     ADD_NAME_LOCATOR = By.CSS_SELECTOR, "input[name='OwnersDropdown_input']"
     ADD_NAME_ITEM_LOCATOR = By.CSS_SELECTOR, "ul#OwnersDropdown_listbox > li"
-    ERROR_WIN_LOCATOR = By.CSS_SELECTOR, "div#confirm-user-popup, div#alert-dialog-1"
-    DISMISS_ERROR_LOCATOR = By.CSS_SELECTOR, "input.button.nicebutton.left-oriented, div.alphacube_close"
+    ERROR_WIN_LOCATOR = By.CSS_SELECTOR, "div.swal2-icon-error"
+    DISMISS_ERROR_LOCATOR = By.CSS_SELECTOR, "button.swal2-confirm"
     RES_CONFIRM_LOCATOR = By.CSS_SELECTOR, "form#createReservation-Form button.btn-submit"
     RES_CANCEL_LOCATOR = By.CSS_SELECTOR, "form#createReservation-Form button[type='reset']"
 
@@ -223,8 +223,7 @@ class PacControl(AbstractContextManager["PacControl"]):
             raise PacException.fromXcp(doingMsg, e) from e
     # end navigateToSchedule()
 
-    def startReservation(self):
-        self.reservationStarted = True
+    def setReservationParameters(self):
         doingMsg = "select reservation type dropdown list"
         try:
             self.webDriver.find_element(*PacControl.RES_TYPE_LOCATOR).click()
@@ -258,7 +257,7 @@ class PacControl(AbstractContextManager["PacControl"]):
             # end for
         except WebDriverException as e:
             raise PacException.fromXcp(doingMsg, e) from e
-    # end startReservation()
+    # end setReservationParameters()
 
     def addPlayer(self) -> None:
         try:
@@ -370,13 +369,15 @@ class PacControl(AbstractContextManager["PacControl"]):
             WebDriverWait(self.webDriver, 15).until(
                 element_to_be_clickable(PacControl.RES_TYPE_LOCATOR),
                 "Timed out waiting to open reservation dialog")
+            self.reservationStarted = True
         except WebDriverException as e:
             raise PacException.fromXcp(doingMsg, e) from e
     # end selectAvailableCourt()
 
     def handleErrorWindow(self, unableMsg: str) -> None:
         """Look for an error window;
-            can be caused by looking too early on a future day,
+            can be caused by looking too far in the future,
+            by looking too early on a future day,
             by listing a player who has a reservation around the same time
             and by looking earlier than run time on run day"""
         errWins: list[WebElement] = self.webDriver.find_elements(*PacControl.ERROR_WIN_LOCATOR)
@@ -385,13 +386,12 @@ class PacControl(AbstractContextManager["PacControl"]):
         for errWin in errWins:
             if errWin.is_displayed():
                 errorMsg = errWin.text
+                self.clickAndLoad("dismiss error", PacControl.DISMISS_ERROR_LOCATOR, errWin)
 
                 if "has already reserved" in errorMsg \
                         or "minutes between reservations" in errorMsg:
                     self.playerHasAlreadyReserved = True
                     logging.warning(errorMsg)
-                    self.clickAndLoad(
-                        "dismiss error", PacControl.DISMISS_ERROR_LOCATOR, errWin)
                     self.cancelPendingReservation()
                 else:
                     errWinMsgs.append(errorMsg)
@@ -410,6 +410,7 @@ class PacControl(AbstractContextManager["PacControl"]):
                     logging.info(f"{butt.get_attribute('innerText')} enabled: {butt.is_enabled()}")
                 else:
                     self.clickAndLoad("confirm reservation", PacControl.RES_CONFIRM_LOCATOR)
+                    self.handleErrorWindow("confirm reservation is good")
                     self.reservationStarted = False
                     logging.info("Reservation confirmed")
         except WebDriverException as e:
@@ -457,7 +458,7 @@ class PacControl(AbstractContextManager["PacControl"]):
 
                 while needsReservation:
                     self.selectAvailableCourt()
-                    self.startReservation()
+                    self.setReservationParameters()
                     self.addPlayer()
                     self.reserveCourt()
                     needsReservation = self.needsToTryAgain()
