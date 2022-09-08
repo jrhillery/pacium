@@ -16,7 +16,7 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.remote.webelement import WebElement
 from selenium.webdriver.support.expected_conditions import (
-    element_to_be_clickable, invisibility_of_element_located, visibility_of_element_located)
+    element_to_be_clickable)
 from selenium.webdriver.support.wait import WebDriverWait
 from time import sleep
 
@@ -65,9 +65,11 @@ class PacControl(AbstractContextManager["PacControl"]):
     NEXT_DAY_LOCATOR = By.CSS_SELECTOR, "button.k-nav-next"
     ONE_DAY = timedelta(days=1)
     RES_TYPE_LOCATOR = By.CSS_SELECTOR, "span[aria-controls='ReservationTypeId_listbox']"
-    RES_TYPE_ITEM_LOCATOR = By.CSS_SELECTOR, "ul#ReservationTypeId_listbox > li"
+    RES_TYPE_ITEM_LOCATOR = \
+        By.CSS_SELECTOR, "ul#ReservationTypeId_listbox[aria-hidden='false'] > li"
     RES_DURATION_LOCATOR = By.CSS_SELECTOR, "span[aria-controls='Duration_listbox']"
-    RES_DURATION_ITEM_LOCATOR = By.CSS_SELECTOR, "ul#Duration_listbox > li"
+    RES_DURATION_ITEM_LOCATOR = \
+        By.CSS_SELECTOR, "ul#Duration_listbox[aria-hidden='false'] > li"
     ADD_NAME_LOCATOR = By.CSS_SELECTOR, "input[name='OwnersDropdown_input']"
     ADD_NAME_ITEM_LOCATOR = By.CSS_SELECTOR, "ul#OwnersDropdown_listbox > li"
     ERROR_WIN_LOCATOR = By.CSS_SELECTOR, "div.swal2-icon-error, div#error-modal"
@@ -388,8 +390,8 @@ class PacControl(AbstractContextManager["PacControl"]):
                 errorMsg = errWin.text
                 self.clickAndLoad("dismiss error", PacControl.DISMISS_ERROR_LOCATOR, errWin)
 
-                if "has already reserved" in errorMsg \
-                        or "minutes between reservations" in errorMsg:
+                if "requires 1 additional player" in errorMsg \
+                        or "not allowed on this reservation" in errorMsg:
                     self.playerHasAlreadyReserved = True
                     logging.warning(errorMsg)
                     self.cancelPendingReservation()
@@ -412,7 +414,9 @@ class PacControl(AbstractContextManager["PacControl"]):
                     self.clickAndLoad("confirm reservation", PacControl.RES_CONFIRM_LOCATOR)
                     self.handleErrorWindow("confirm reservation is good")
                     self.reservationStarted = False
-                    logging.info("Reservation confirmed")
+
+                    if not self.needsToTryAgain():
+                        logging.info("Reservation confirmed")
         except WebDriverException as e:
             raise PacException.fromXcp(doingMsg, e) from e
     # end reserveCourt()
