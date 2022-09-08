@@ -9,7 +9,7 @@ from urllib.parse import urljoin
 
 from selenium import webdriver
 from selenium.common.exceptions import (
-    InvalidSelectorException, NoAlertPresentException, TimeoutException, WebDriverException)
+    InvalidSelectorException, TimeoutException, WebDriverException)
 from selenium.webdriver import ActionChains
 from selenium.webdriver.chrome.webdriver import WebDriver
 from selenium.webdriver.common.by import By
@@ -225,6 +225,56 @@ class PacControl(AbstractContextManager["PacControl"]):
             raise PacException.fromXcp(doingMsg, e) from e
     # end navigateToSchedule()
 
+    def findSchBlock(self, court: Court, startTime: str) -> WebElement:
+        # <button start="Wed Aug 24 2022 09:00:00 GMT-0400 (Eastern Daylight Time)" courtlabel="Court #3"
+        # class="btn btn-default hide btn-expanded-slot slot-btn m-auto">Reserve</button>
+        selector = f"button[start^='{startTime}'][courtlabel='{court.name}']"
+        try:
+            return self.webDriver.find_element(By.CSS_SELECTOR, selector)
+        except InvalidSelectorException as e:
+            raise InvalidSelectorException(f"{e.msg} {{{selector}}}", e.screen, e.stacktrace)
+    # end findSchBlock(Court, str)
+
+    def blockAvailable(self, court: Court, startTime: str) -> bool:
+        """Return True when the specified schedule block is available"""
+        schBlock = self.findSchBlock(court, startTime)
+
+        return "hide" not in schBlock.get_attribute("class")
+    # end blockAvailable(Court, str)
+
+    def findFirstAvailableCourt(self) -> CourtAndTime:
+        for courtTime in self.preferredTimes.timesInPreferredOrder:
+            startTimes = courtTime.getStartTimesForDate(self.requestDate)
+
+            for court in self.preferredCourts.courtsInPreferredOrder:
+
+                if all(self.blockAvailable(court, st) for st in startTimes):
+
+                    return CourtAndTime(court, courtTime, startTimes[0])
+            # end for
+        # end for
+
+        raise PacException(PacControl.NO_COURTS_MSG)
+    # end findFirstAvailableCourt()
+
+    def selectAvailableCourt(self) -> None:
+        doingMsg = "find court time block"
+        try:
+            self.found = self.findFirstAvailableCourt()
+
+            doingMsg = "select court start time"
+            self.findSchBlock(self.found.court, self.found.startTime).click()
+
+            WebDriverWait(self.webDriver, 15).until(
+                element_to_be_clickable(PacControl.RES_TYPE_LOCATOR),
+                "Timed out waiting to open reservation dialog")
+            self.reservationStarted = True
+        except WebDriverException as e:
+            self.handleErrorWindow(doingMsg)
+
+            raise PacException.fromXcp(doingMsg, e) from e
+    # end selectAvailableCourt()
+
     def setReservationParameters(self):
         doingMsg = "select reservation type dropdown list"
         try:
@@ -311,72 +361,6 @@ class PacControl(AbstractContextManager["PacControl"]):
         except WebDriverException as e:
             raise PacException.fromXcp(doingMsg, e) from e
     # end selectPlayer(str)
-
-    def findSchBlock(self, court: Court, startTime: str) -> WebElement:
-        # <button start="Wed Aug 24 2022 09:00:00 GMT-0400 (Eastern Daylight Time)" courtlabel="Court #3"
-        # class="btn btn-default hide btn-expanded-slot slot-btn m-auto">Reserve</button>
-        selector = f"button[start^='{startTime}'][courtlabel='{court.name}']"
-        try:
-            return self.webDriver.find_element(By.CSS_SELECTOR, selector)
-        except InvalidSelectorException as e:
-            raise InvalidSelectorException(f"{e.msg} {{{selector}}}", e.screen, e.stacktrace)
-    # end findSchBlock(Court, str)
-
-    def blockAvailable(self, court: Court, startTime: str) -> bool:
-        """Return True when the specified schedule block is available"""
-        schBlock = self.findSchBlock(court, startTime)
-
-        return "hide" not in schBlock.get_attribute("class")
-    # end blockAvailable(Court, str)
-
-    def findFirstAvailableCourt(self) -> CourtAndTime:
-        for courtTime in self.preferredTimes.timesInPreferredOrder:
-            startTimes = courtTime.getStartTimesForDate(self.requestDate)
-
-            for court in self.preferredCourts.courtsInPreferredOrder:
-
-                if all(self.blockAvailable(court, st) for st in startTimes):
-
-                    return CourtAndTime(court, courtTime, startTimes[0])
-            # end for
-        # end for
-
-        raise PacException(PacControl.NO_COURTS_MSG)
-    # end findFirstAvailableCourt()
-
-    def handleAlert(self, unableMsg: str) -> None:
-        """Raise an exception if an alert is present, also dismiss that alert"""
-        try:
-            alert = self.webDriver.switch_to.alert
-
-            # we get here when an alert is present
-            # this alert can be caused by looking too many days in the future
-            alertText = alert.text
-            alert.dismiss()
-
-            raise PacException.fromAlert(unableMsg, alertText)
-        except NoAlertPresentException:
-            # good to not have an alert
-            pass
-    # end handleAlert(str)
-
-    def selectAvailableCourt(self) -> None:
-        doingMsg = "find court time block"
-        try:
-            self.found = self.findFirstAvailableCourt()
-
-            doingMsg = "select court start time"
-            self.findSchBlock(self.found.court, self.found.startTime).click()
-
-            WebDriverWait(self.webDriver, 15).until(
-                element_to_be_clickable(PacControl.RES_TYPE_LOCATOR),
-                "Timed out waiting to open reservation dialog")
-            self.reservationStarted = True
-        except WebDriverException as e:
-            self.handleErrorWindow(doingMsg)
-
-            raise PacException.fromXcp(doingMsg, e) from e
-    # end selectAvailableCourt()
 
     def handleErrorWindow(self, unableMsg: str) -> None:
         """Look for an error window;
