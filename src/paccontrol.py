@@ -53,15 +53,15 @@ class PacException(Exception):
 
 class PacControl(AbstractContextManager["PacControl"]):
     """Controls Prosperity Athletic Club web pages"""
-    PAC_LOG_IN = "https://app.courtreserve.com/"
-    MY_ACCOUNT = By.CSS_SELECTOR, "li#my-account-li-web"
-    PAC_LOG_OUT = By.LINK_TEXT, "Log Out"
     NO_COURTS_MSG = "No available courts found"
+    PAC_LOG_IN = "https://app.courtreserve.com/"
     LOGIN_FORM_LOCATOR = By.CSS_SELECTOR, "form#loginForm"
     USERNAME_LOCATOR = By.CSS_SELECTOR, "input#Username"
     RESERVE_LOCATOR_A = By.LINK_TEXT, "Reservations"
-    RESERVE_LOCATOR_B = By.LINK_TEXT, "Book a Court"
+    MY_ACCOUNT = By.CSS_SELECTOR, "li#my-account-li-web"
+    PAC_LOG_OUT = By.LINK_TEXT, "Log Out"
     SCH_DATE_LOCATOR = By.CSS_SELECTOR, "span.k-lg-date-format"
+    RESERVE_LOCATOR_B = By.LINK_TEXT, "Book a Court"
     NEXT_DAY_LOCATOR = By.CSS_SELECTOR, "button.k-nav-next"
     ONE_DAY = timedelta(days=1)
     RES_TYPE_LOCATOR = By.CSS_SELECTOR, "span[aria-controls='ReservationTypeId_listbox']"
@@ -214,8 +214,8 @@ class PacControl(AbstractContextManager["PacControl"]):
         try:
             resLink = self.mouseOver("hover over reservations", PacControl.RESERVE_LOCATOR_A)
 
-            resLink.get_property("parentElement") \
-                .find_element(*PacControl.RESERVE_LOCATOR_B).click()
+            resLink.get_property("parentElement").find_element(
+                *PacControl.RESERVE_LOCATOR_B).click()
             WebDriverWait(self.webDriver, 15).until(
                 element_to_be_clickable(PacControl.NEXT_DAY_LOCATOR),
                 "Timed out waiting to open court schedule page")
