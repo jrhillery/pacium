@@ -14,7 +14,7 @@ from selenium.webdriver.chrome.webdriver import WebDriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.remote.webelement import WebElement
 from selenium.webdriver.support.expected_conditions import (
-    element_to_be_clickable, invisibility_of_element_located)
+    element_to_be_clickable, invisibility_of_element, invisibility_of_element_located)
 from selenium.webdriver.support.wait import WebDriverWait
 from time import sleep
 
@@ -172,6 +172,7 @@ class PacControl(AbstractContextManager["PacControl"]):
             WebDriverWait(self.webDriver, 15).until(
                 invisibility_of_element_located(PacControl.SCH_DATE_LOCATOR),
                 "Timed out waiting to log out")
+
             self.loggedIn = False
             # give us a chance to see we are logged out
             sleep(0.75)
@@ -424,10 +425,17 @@ class PacControl(AbstractContextManager["PacControl"]):
         return self.playerHasAlreadyReserved
     # end needsToTryAgain()
 
-    def cancelPendingReservation(self):
-        self.clickAndLoad("cancel pending reservation", PacControl.RES_CANCEL_LOCATOR,
-                          self.resForm)
-        self.resForm = None
+    def cancelPendingReservation(self) -> None:
+        doingMsg = "canceling pending reservation"
+        try:
+            self.resForm.find_element(*PacControl.RES_CANCEL_LOCATOR).click()
+            WebDriverWait(self.webDriver, 15).until(
+                invisibility_of_element(self.resForm),
+                "Timed out waiting to cancel pending reservation")
+
+            self.resForm = None
+        except WebDriverException as e:
+            raise PacException.fromXcp(doingMsg, e) from e
 
         # give us a chance to see reservation cancelled
         sleep(0.5)
