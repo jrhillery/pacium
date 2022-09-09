@@ -12,7 +12,6 @@ from selenium.common.exceptions import (
 from selenium.webdriver import ActionChains
 from selenium.webdriver.chrome.webdriver import WebDriver
 from selenium.webdriver.common.by import By
-from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.remote.webelement import WebElement
 from selenium.webdriver.support.expected_conditions import (
     element_to_be_clickable, invisibility_of_element_located)
@@ -57,6 +56,7 @@ class PacControl(AbstractContextManager["PacControl"]):
     PAC_LOG_IN = "https://app.courtreserve.com/"
     LOGIN_FORM_LOCATOR = By.CSS_SELECTOR, "form#loginForm"
     USERNAME_LOCATOR = By.CSS_SELECTOR, "input#Username"
+    PASSWORD_LOCATOR = By.CSS_SELECTOR, "input#Password"
     RESERVE_LOCATOR_A = By.LINK_TEXT, "Reservations"
     MY_ACCOUNT = By.CSS_SELECTOR, "li#my-account-li-web"
     PAC_LOG_OUT = By.LINK_TEXT, "Log Out"
@@ -65,6 +65,7 @@ class PacControl(AbstractContextManager["PacControl"]):
     NEXT_DAY_LOCATOR = By.CSS_SELECTOR, "button.k-nav-next"
     ONE_DAY = timedelta(days=1)
     RES_TYPE_LOCATOR = By.CSS_SELECTOR, "span[aria-controls='ReservationTypeId_listbox']"
+    RES_FORM_LOCATOR = By.CSS_SELECTOR, "form#createReservation-Form"
     RES_TYPE_ITEM_LOCATOR = \
         By.CSS_SELECTOR, "ul#ReservationTypeId_listbox[aria-hidden='false'] > li"
     RES_DURATION_LOCATOR = By.CSS_SELECTOR, "span[aria-controls='Duration_listbox']"
@@ -74,13 +75,13 @@ class PacControl(AbstractContextManager["PacControl"]):
     ADD_NAME_ITEM_LOCATOR = By.CSS_SELECTOR, "ul#OwnersDropdown_listbox > li"
     ERROR_WIN_LOCATOR = By.CSS_SELECTOR, "div.swal2-icon-error, div#error-modal"
     DISMISS_ERROR_LOCATOR = By.CSS_SELECTOR, "button.swal2-confirm, button[type='reset']"
-    RES_CONFIRM_LOCATOR = By.CSS_SELECTOR, "form#createReservation-Form button.btn-submit"
-    RES_CANCEL_LOCATOR = By.CSS_SELECTOR, "form#createReservation-Form button[type='reset']"
+    RES_CONFIRM_LOCATOR = By.CSS_SELECTOR, "button.btn-submit"
+    RES_CANCEL_LOCATOR = By.CSS_SELECTOR, "button[type='reset']"
 
     def __init__(self, args: PacArgs):
         self.webDriver: WebDriver | None = None
         self.loggedIn = False
-        self.reservationStarted = False
+        self.resForm: WebElement | None = None
         self.found: CourtAndTime | None = None
         self.playerHasAlreadyReserved = False
         self.playerItr: Iterator[User] | None = None
@@ -137,15 +138,16 @@ class PacControl(AbstractContextManager["PacControl"]):
             self.webDriver.get(PacControl.PAC_LOG_IN)
 
             doingMsg = "find log-in form"
-            liForm = self.webDriver.find_element(*PacControl.LOGIN_FORM_LOCATOR)
+            liForm: WebElement = self.webDriver.find_element(*PacControl.LOGIN_FORM_LOCATOR)
             self.playerItr = iter(self.players.people)
 
             doingMsg = "enter first username"
             liForm.find_element(*PacControl.USERNAME_LOCATOR).send_keys(
-                next(self.playerItr).username, Keys.TAB)
+                next(self.playerItr).username)
 
             doingMsg = "enter password"
-            self.webDriver.switch_to.active_element.send_keys(self.players.password)
+            liForm.find_element(*PacControl.PASSWORD_LOCATOR).send_keys(
+                self.players.password)
 
             doingMsg = "submit log-in"
             liForm.submit()
@@ -277,7 +279,7 @@ class PacControl(AbstractContextManager["PacControl"]):
             WebDriverWait(self.webDriver, 15).until(
                 element_to_be_clickable(PacControl.RES_TYPE_LOCATOR),
                 "Timed out waiting to open reservation dialog")
-            self.reservationStarted = True
+            self.resForm = self.webDriver.find_element(*PacControl.RES_FORM_LOCATOR)
         except WebDriverException as e:
             self.handleErrorWindow(doingMsg)
 
@@ -287,13 +289,14 @@ class PacControl(AbstractContextManager["PacControl"]):
     def setReservationParameters(self):
         doingMsg = "select reservation type dropdown list"
         try:
-            self.webDriver.find_element(*PacControl.RES_TYPE_LOCATOR).click()
+            self.resForm.find_element(*PacControl.RES_TYPE_LOCATOR).click()
             WebDriverWait(self.webDriver, 15).until(
                 element_to_be_clickable(PacControl.RES_TYPE_ITEM_LOCATOR),
                 "Timed out waiting for reservation type dropdown list")
 
             doingMsg = "select reservation type"
-            htmlItems: list[WebElement] = self.webDriver.find_elements(*PacControl.RES_TYPE_ITEM_LOCATOR)
+            htmlItems: list[WebElement] = self.webDriver.find_elements(
+                *PacControl.RES_TYPE_ITEM_LOCATOR)
 
             for htmlItem in htmlItems:
                 if htmlItem.text == "Singles":
@@ -301,13 +304,13 @@ class PacControl(AbstractContextManager["PacControl"]):
                     break
             # end for
             doingMsg = "select duration dropdown list"
-            self.webDriver.find_element(*PacControl.RES_DURATION_LOCATOR).click()
+            self.resForm.find_element(*PacControl.RES_DURATION_LOCATOR).click()
             WebDriverWait(self.webDriver, 15).until(
                 element_to_be_clickable(PacControl.RES_DURATION_ITEM_LOCATOR),
                 "Timed out waiting for duration dropdown list")
 
             doingMsg = "select duration"
-            htmlItems = self.webDriver.find_elements(*PacControl.RES_DURATION_ITEM_LOCATOR)
+            htmlItems = self.resForm.find_elements(*PacControl.RES_DURATION_ITEM_LOCATOR)
             duration = "1 hour & 30 minutes" if self.found.courtTime.duration == 90 else \
                 "1 hour" if self.found.courtTime.duration == 60 else "30 minutes"
 
@@ -341,7 +344,7 @@ class PacControl(AbstractContextManager["PacControl"]):
         try:
             while True:
                 doingMsg = "key-in player for reservation"
-                inputFld = self.webDriver.find_element(*PacControl.ADD_NAME_LOCATOR)
+                inputFld = self.resForm.find_element(*PacControl.ADD_NAME_LOCATOR)
                 inputFld.clear()
                 inputFld.send_keys(playerName)
 
@@ -401,12 +404,13 @@ class PacControl(AbstractContextManager["PacControl"]):
         try:
             if not self.needsToTryAgain():
                 if self.testMode:
-                    butt = self.webDriver.find_element(*PacControl.RES_CONFIRM_LOCATOR)
+                    butt = self.resForm.find_element(*PacControl.RES_CONFIRM_LOCATOR)
                     logging.info(f"{butt.get_attribute('innerText')} enabled: {butt.is_enabled()}")
                 else:
-                    self.clickAndLoad("confirm reservation", PacControl.RES_CONFIRM_LOCATOR)
+                    self.clickAndLoad("confirm reservation", PacControl.RES_CONFIRM_LOCATOR,
+                                      self.resForm)
                     self.handleErrorWindow("confirm reservation is good")
-                    self.reservationStarted = False
+                    self.resForm = None
 
                     if not self.needsToTryAgain():
                         logging.info("Reservation confirmed")
@@ -421,8 +425,10 @@ class PacControl(AbstractContextManager["PacControl"]):
     # end needsToTryAgain()
 
     def cancelPendingReservation(self):
-        self.clickAndLoad("cancel pending reservation", PacControl.RES_CANCEL_LOCATOR)
-        self.reservationStarted = False
+        self.clickAndLoad("cancel pending reservation", PacControl.RES_CANCEL_LOCATOR,
+                          self.resForm)
+        self.resForm = None
+
         # give us a chance to see reservation cancelled
         sleep(0.5)
     # end cancelPendingReservation()
@@ -432,7 +438,7 @@ class PacControl(AbstractContextManager["PacControl"]):
                  traceback: TracebackType | None) -> bool | None:
 
         try:
-            if self.reservationStarted:
+            if self.resForm:
                 self.cancelPendingReservation()
                 logging.info("Reservation not confirmed")
         finally:
