@@ -5,7 +5,6 @@ from datetime import datetime, timedelta
 from os import getcwd
 from types import TracebackType
 from typing import Iterator, NamedTuple, Type
-from urllib.parse import urljoin
 
 from selenium import webdriver
 from selenium.common.exceptions import (
@@ -16,7 +15,7 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.remote.webelement import WebElement
 from selenium.webdriver.support.expected_conditions import (
-    element_to_be_clickable)
+    element_to_be_clickable, invisibility_of_element_located)
 from selenium.webdriver.support.wait import WebDriverWait
 from time import sleep
 
@@ -55,7 +54,8 @@ class PacException(Exception):
 class PacControl(AbstractContextManager["PacControl"]):
     """Controls Prosperity Athletic Club web pages"""
     PAC_LOG_IN = "https://app.courtreserve.com/"
-    PAC_LOG_OUT = "/Online/Account/LogOut/7319"
+    MY_ACCOUNT = By.CSS_SELECTOR, "li#my-account-li-web"
+    PAC_LOG_OUT = By.LINK_TEXT, "Log Out"
     NO_COURTS_MSG = "No available courts found"
     LOGIN_FORM_LOCATOR = By.CSS_SELECTOR, "form#loginForm"
     USERNAME_LOCATOR = By.CSS_SELECTOR, "input#Username"
@@ -162,14 +162,19 @@ class PacControl(AbstractContextManager["PacControl"]):
 
     def logOut(self) -> None:
         """Log-out from Prosperity Athletic Club"""
-        loUrl = urljoin(self.webDriver.current_url, PacControl.PAC_LOG_OUT)
+        doingMsg = "logging out"
         try:
-            self.webDriver.get(loUrl)
+            maList = self.mouseOver("hover over my account", PacControl.MY_ACCOUNT)
+
+            maList.find_element(*PacControl.PAC_LOG_OUT).click()
+            WebDriverWait(self.webDriver, 15).until(
+                invisibility_of_element_located(PacControl.SCH_DATE_LOCATOR),
+                "Timed out waiting to log out")
             self.loggedIn = False
             # give us a chance to see we are logged out
             sleep(0.75)
         except WebDriverException as e:
-            raise PacException.fromXcp("log-out via " + loUrl, e) from e
+            raise PacException.fromXcp(doingMsg, e) from e
     # end logOut()
 
     def clickAndLoad(self, unableMsg: str, locator: tuple[str, str],
@@ -189,14 +194,17 @@ class PacControl(AbstractContextManager["PacControl"]):
     # end clickAndLoad(str, tuple[str, str], WebElement | None)
 
     def mouseOver(self, unableMsg: str, locator: tuple[str, str],
-                  searchCtx: WebElement | None = None) -> None:
+                  searchCtx: WebElement | None = None) -> WebElement:
         """Hover mouse over a located element"""
         if not searchCtx:
             searchCtx = self.webDriver
         try:
+            foundElement = searchCtx.find_element(*locator)
             action = ActionChains(self.webDriver)
-            action.move_to_element(searchCtx.find_element(*locator))
+            action.move_to_element(foundElement)
             action.perform()
+
+            return foundElement
         except WebDriverException as e:
             raise PacException.fromXcp(unableMsg, e) from e
     # end mouseOver(str, tuple[str, str], WebElement | None)
