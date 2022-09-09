@@ -212,9 +212,10 @@ class PacControl(AbstractContextManager["PacControl"]):
     def navigateToSchedule(self) -> None:
         doingMsg = "book a court on home page"
         try:
-            self.mouseOver("open reservations on home page", PacControl.RESERVE_LOCATOR_A)
+            resLink = self.mouseOver("hover over reservations", PacControl.RESERVE_LOCATOR_A)
 
-            self.webDriver.find_element(*PacControl.RESERVE_LOCATOR_B).click()
+            resLink.get_property("parentElement") \
+                .find_element(*PacControl.RESERVE_LOCATOR_B).click()
             WebDriverWait(self.webDriver, 15).until(
                 element_to_be_clickable(PacControl.NEXT_DAY_LOCATOR),
                 "Timed out waiting to open court schedule page")
