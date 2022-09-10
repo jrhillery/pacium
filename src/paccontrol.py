@@ -58,10 +58,10 @@ class PacControl(AbstractContextManager["PacControl"]):
     LOGIN_FORM_LOCATOR = By.CSS_SELECTOR, "form#loginForm"
     USERNAME_LOCATOR = By.CSS_SELECTOR, "input#Username"
     PASSWORD_LOCATOR = By.CSS_SELECTOR, "input#Password"
-    RESERVE_LOCATOR_A = By.LINK_TEXT, "Reservations"
     MY_ACCOUNT = By.CSS_SELECTOR, "li#my-account-li-web"
     PAC_LOG_OUT = By.LINK_TEXT, "Log Out"
     SCH_DATE_LOCATOR = By.CSS_SELECTOR, "span.k-lg-date-format"
+    RESERVE_LOCATOR_A = By.LINK_TEXT, "Reservations"
     RESERVE_LOCATOR_B = By.LINK_TEXT, "Book a Court"
     NEXT_DAY_LOCATOR = By.CSS_SELECTOR, "button.k-nav-next"
     ONE_DAY = timedelta(days=1)
@@ -81,7 +81,7 @@ class PacControl(AbstractContextManager["PacControl"]):
 
     def __init__(self, args: PacArgs):
         self.webDriver: WebDriver | None = None
-        self.loggedIn = False
+        self.logOutHref: str | None = None
         self.resForm: WebElement | None = None
         self.found: CourtAndTime | None = None
         self.playerHasAlreadyReserved = False
@@ -155,10 +155,15 @@ class PacControl(AbstractContextManager["PacControl"]):
 
             doingMsg = "complete log-in"
             WebDriverWait(self.webDriver, 15).until(
-                element_to_be_clickable(PacControl.RESERVE_LOCATOR_A),
+                element_to_be_clickable(PacControl.MY_ACCOUNT),
                 "Timed out waiting to log-in")
-            self.loggedIn = True
+
             # now on home page
+            doingMsg = "saving log out reference"
+            maList = self.mouseOver("hover over my account", PacControl.MY_ACCOUNT)
+
+            self.logOutHref = maList.find_element(
+                *PacControl.PAC_LOG_OUT).get_property("href")
         except WebDriverException as e:
             raise PacException.fromXcp(doingMsg, e) from e
     # end logIn()
@@ -167,14 +172,12 @@ class PacControl(AbstractContextManager["PacControl"]):
         """Log-out from Prosperity Athletic Club"""
         doingMsg = "logging out"
         try:
-            maList = self.mouseOver("hover over my account", PacControl.MY_ACCOUNT)
-
-            maList.find_element(*PacControl.PAC_LOG_OUT).click()
+            self.webDriver.get(self.logOutHref)
             WebDriverWait(self.webDriver, 15).until(
                 invisibility_of_element_located(PacControl.SCH_DATE_LOCATOR),
                 "Timed out waiting to log out")
 
-            self.loggedIn = False
+            self.logOutHref = None
             # give us a chance to see we are logged out
             sleep(0.75)
         except WebDriverException as e:
@@ -463,7 +466,7 @@ class PacControl(AbstractContextManager["PacControl"]):
                 self.cancelPendingReservation()
                 logging.info("Reservation not confirmed")
         finally:
-            if self.loggedIn:
+            if self.logOutHref:
                 self.logOut()
 
         return None
