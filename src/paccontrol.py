@@ -150,10 +150,8 @@ class PacControl(AbstractContextManager["PacControl"]):
             liForm.find_element(*PacControl.PASSWORD_LOCATOR).send_keys(
                 self.players.password)
 
-            doingMsg = "submit log-in"
+            doingMsg = "submit log-in form"
             liForm.submit()
-
-            doingMsg = "complete log-in"
             WebDriverWait(self.webDriver, 15).until(
                 element_to_be_clickable(PacControl.MY_ACCOUNT),
                 "Timed out waiting to log-in")
@@ -183,22 +181,6 @@ class PacControl(AbstractContextManager["PacControl"]):
         except WebDriverException as e:
             raise PacException.fromXcp(doingMsg, e) from e
     # end logOut()
-
-    def clickAndLoad(self, unableMsg: str, locator: tuple[str, str],
-                     searchCtx: WebElement | None = None) -> None:
-        """Click a located element"""
-        if not searchCtx:
-            searchCtx = self.webDriver
-        try:
-            action = ActionChains(self.webDriver)
-            action.click(searchCtx.find_element(*locator))
-            action.perform()
-
-            # can't seem to automate the loading splash spinner, so just wait a fixed time
-            sleep(4)
-        except WebDriverException as e:
-            raise PacException.fromXcp(unableMsg, e) from e
-    # end clickAndLoad(str, tuple[str, str], WebElement | None)
 
     def mouseOver(self, unableMsg: str, locator: tuple[str, str],
                   searchCtx: WebElement | None = None) -> WebElement:
@@ -234,7 +216,10 @@ class PacControl(AbstractContextManager["PacControl"]):
 
             while diff:
                 doingMsg = f"request date {self.requestDate} on schedule in {diff}"
-                self.clickAndLoad(doingMsg, PacControl.NEXT_DAY_LOCATOR)
+                self.webDriver.find_element(*PacControl.NEXT_DAY_LOCATOR).click()
+
+                # can't seem to automate the loading spinner, so just wait a fixed time
+                sleep(12)
                 diff -= PacControl.ONE_DAY
             # end while
         except WebDriverException as e:
