@@ -14,7 +14,8 @@ from selenium.webdriver.chrome.webdriver import WebDriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.remote.webelement import WebElement
 from selenium.webdriver.support.expected_conditions import (
-    element_to_be_clickable, invisibility_of_element, invisibility_of_element_located)
+    any_of, element_to_be_clickable, invisibility_of_element,
+    invisibility_of_element_located, visibility_of_element_located)
 from selenium.webdriver.support.wait import WebDriverWait
 from time import sleep
 
@@ -408,8 +409,13 @@ class PacControl(AbstractContextManager["PacControl"]):
                     butt = self.resForm.find_element(*PacControl.RES_CONFIRM_LOCATOR)
                     logging.info(f"{butt.get_attribute('innerText')} enabled: {butt.is_enabled()}")
                 else:
-                    self.clickAndLoad("confirm reservation", PacControl.RES_CONFIRM_LOCATOR,
-                                      self.resForm)
+                    doingMsg = "confirming reservation"
+                    self.resForm.find_element(*PacControl.RES_CONFIRM_LOCATOR).click()
+                    WebDriverWait(self.webDriver, 15).until(any_of(
+                        invisibility_of_element(self.resForm),
+                        visibility_of_element_located(PacControl.ERROR_WIN_LOCATOR)),
+                        "Timed out waiting to confirm reservation")
+
                     self.handleErrorWindow("confirm reservation is good")
                     self.resForm = None
 
