@@ -252,7 +252,7 @@ class PacControl(AbstractContextManager["PacControl"]):
         """Return True when the specified schedule block is available"""
         schBlock = self.findSchBlock(court, startTime)
 
-        return "hide" not in schBlock.get_attribute("class")
+        return schBlock.is_displayed()
     # end blockAvailable(Court, str)
 
     def findFirstAvailableCourt(self) -> CourtAndTime:
@@ -386,7 +386,14 @@ class PacControl(AbstractContextManager["PacControl"]):
         for errWin in errWins:
             if errWin.is_displayed():
                 errorMsg = errWin.text
-                self.clickAndLoad("dismiss error", PacControl.DISMISS_ERROR_LOCATOR, errWin)
+                doingMsg = "dismissing error"
+                try:
+                    errWin.find_element(*PacControl.DISMISS_ERROR_LOCATOR).click()
+                    WebDriverWait(self.webDriver, 15).until(
+                        invisibility_of_element(errWin),
+                        "Timed out waiting to dismiss error")
+                except WebDriverException as e:
+                    raise PacException.fromXcp(doingMsg, e) from e
 
                 if "requires 1 additional player" in errorMsg \
                         or "not allowed on this reservation" in errorMsg:
