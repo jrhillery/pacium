@@ -60,10 +60,10 @@ class PacControl(AbstractContextManager["PacControl"]):
     PASSWORD_LOCATOR = By.CSS_SELECTOR, "input#Password"
     MY_ACCOUNT = By.CSS_SELECTOR, "li#my-account-li-web"
     PAC_LOG_OUT = By.LINK_TEXT, "Log Out"
-    SCH_DATE_LOCATOR = By.CSS_SELECTOR, "span.k-lg-date-format"
-    RESERVE_LOCATOR_A = By.LINK_TEXT, "Reservations"
-    RESERVE_LOCATOR_B = By.LINK_TEXT, "Book a Court"
+    RESERVE_LOCATOR = By.LINK_TEXT, "Reservations"
+    BOOK_LOCATOR = By.LINK_TEXT, "Book a Court"
     NEXT_DAY_LOCATOR = By.CSS_SELECTOR, "button.k-nav-next"
+    SCH_DATE_LOCATOR = By.CSS_SELECTOR, "span.k-lg-date-format"
     ONE_DAY = timedelta(days=1)
     RES_TYPE_LOCATOR = By.CSS_SELECTOR, "span[aria-controls='ReservationTypeId_listbox']"
     RES_FORM_LOCATOR = By.CSS_SELECTOR, "form#createReservation-Form"
@@ -172,7 +172,7 @@ class PacControl(AbstractContextManager["PacControl"]):
         try:
             self.webDriver.get(self.logOutHref)
             WebDriverWait(self.webDriver, 15).until(
-                invisibility_of_element_located(PacControl.SCH_DATE_LOCATOR),
+                invisibility_of_element_located(PacControl.MY_ACCOUNT),
                 "Timed out waiting to log out")
 
             self.logOutHref = None
@@ -201,10 +201,10 @@ class PacControl(AbstractContextManager["PacControl"]):
     def navigateToSchedule(self) -> None:
         doingMsg = "book a court on home page"
         try:
-            resLink = self.mouseOver("hover over reservations", PacControl.RESERVE_LOCATOR_A)
+            resLink = self.mouseOver("hover over reservations", PacControl.RESERVE_LOCATOR)
 
             resLink.get_property("parentElement").find_element(
-                *PacControl.RESERVE_LOCATOR_B).click()
+                *PacControl.BOOK_LOCATOR).click()
             WebDriverWait(self.webDriver, 15).until(
                 element_to_be_clickable(PacControl.NEXT_DAY_LOCATOR),
                 "Timed out waiting to open court schedule page")
@@ -271,8 +271,6 @@ class PacControl(AbstractContextManager["PacControl"]):
                 "Timed out waiting to open reservation dialog")
             self.resForm = self.webDriver.find_element(*PacControl.RES_FORM_LOCATOR)
         except WebDriverException as e:
-            self.handleErrorWindow(doingMsg)
-
             raise PacException.fromXcp(doingMsg, e) from e
     # end selectAvailableCourt()
 
@@ -374,14 +372,13 @@ class PacControl(AbstractContextManager["PacControl"]):
         for errWin in errWins:
             if errWin.is_displayed():
                 errorMsg = errWin.text
-                doingMsg = "dismissing error"
                 try:
                     errWin.find_element(*PacControl.DISMISS_ERROR_LOCATOR).click()
                     WebDriverWait(self.webDriver, 15).until(
                         invisibility_of_element(errWin),
                         "Timed out waiting to dismiss error")
                 except WebDriverException as e:
-                    raise PacException.fromXcp(doingMsg, e) from e
+                    raise PacException.fromXcp(f"dismissing error: {errorMsg}", e) from e
 
                 if "requires 1 additional player" in errorMsg \
                         or "not allowed on this reservation" in errorMsg:
