@@ -60,10 +60,12 @@ class PacControl(AbstractContextManager["PacControl"]):
     PASSWORD_LOCATOR = By.CSS_SELECTOR, "input#Password"
     MY_ACCOUNT = By.CSS_SELECTOR, "li#my-account-li-web"
     PAC_LOG_OUT = By.LINK_TEXT, "Log Out"
+    SCH_LOADING_LOCATOR = By.CSS_SELECTOR, "div#CourtsScheduler div.k-loading-mask"
     RESERVE_LOCATOR = By.LINK_TEXT, "Reservations"
     BOOK_LOCATOR = By.LINK_TEXT, "Book a Court"
-    NEXT_DAY_LOCATOR = By.CSS_SELECTOR, "button.k-nav-next"
+    SCH_TABLE_LOCATOR = By.CSS_SELECTOR, "div#CourtsScheduler table.k-scheduler-table"
     SCH_DATE_LOCATOR = By.CSS_SELECTOR, "span.k-lg-date-format"
+    NEXT_DAY_LOCATOR = By.CSS_SELECTOR, "button.k-nav-next"
     ONE_DAY = timedelta(days=1)
     RES_TYPE_LOCATOR = By.CSS_SELECTOR, "span[aria-controls='ReservationTypeId_listbox']"
     RES_FORM_LOCATOR = By.CSS_SELECTOR, "form#createReservation-Form"
@@ -198,6 +200,14 @@ class PacControl(AbstractContextManager["PacControl"]):
             raise PacException.fromXcp(unableMsg, e) from e
     # end mouseOver(str, tuple[str, str], WebElement | None)
 
+    def waitForSchedule(self) -> None:
+        wait = WebDriverWait(self.webDriver, 15)
+        wait.until(visibility_of_element_located(PacControl.SCH_LOADING_LOCATOR),
+                   "Timed out waiting for loading indicator")
+        wait.until(invisibility_of_element_located(PacControl.SCH_LOADING_LOCATOR),
+                   "Timed out waiting for schedule table")
+    # end waitForSchedule()
+
     def navigateToSchedule(self) -> None:
         doingMsg = "book a court on home page"
         try:
@@ -206,8 +216,9 @@ class PacControl(AbstractContextManager["PacControl"]):
             resLink.get_property("parentElement").find_element(
                 *PacControl.BOOK_LOCATOR).click()
             WebDriverWait(self.webDriver, 15).until(
-                element_to_be_clickable(PacControl.NEXT_DAY_LOCATOR),
+                visibility_of_element_located(PacControl.SCH_TABLE_LOCATOR),
                 "Timed out waiting to open court schedule page")
+            self.waitForSchedule()
 
             doingMsg = "read initial schedule date"
             schDate = self.webDriver.find_element(
@@ -217,9 +228,7 @@ class PacControl(AbstractContextManager["PacControl"]):
             while diff:
                 doingMsg = f"request date {self.requestDate} on schedule in {diff}"
                 self.webDriver.find_element(*PacControl.NEXT_DAY_LOCATOR).click()
-
-                # can't seem to automate the loading spinner, so just wait a fixed time
-                sleep(12)
+                self.waitForSchedule()
                 diff -= PacControl.ONE_DAY
             # end while
         except WebDriverException as e:
