@@ -145,13 +145,13 @@ class PacControl(AbstractContextManager["PacControl"]):
             liForm: WebElement = self.webDriver.find_element(*PacControl.LOGIN_FORM_LOCATOR)
             self.playerItr = iter(self.players.people)
 
-            doingMsg = "enter first username"
-            liForm.find_element(*PacControl.USERNAME_LOCATOR).send_keys(
-                next(self.playerItr).username)
-
             doingMsg = "enter password"
             liForm.find_element(*PacControl.PASSWORD_LOCATOR).send_keys(
                 self.players.password)
+
+            doingMsg = "enter first username"
+            liForm.find_element(*PacControl.USERNAME_LOCATOR).send_keys(
+                next(self.playerItr).username)
 
             doingMsg = "submit log-in form"
             liForm.submit()
