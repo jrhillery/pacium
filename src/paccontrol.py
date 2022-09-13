@@ -63,7 +63,8 @@ class PacControl(AbstractContextManager["PacControl"]):
     SCH_LOADING_LOCATOR = By.CSS_SELECTOR, "div#CourtsScheduler div.k-loading-mask"
     RESERVE_LOCATOR = By.LINK_TEXT, "Reservations"
     BOOK_LOCATOR = By.LINK_TEXT, "Book a Court"
-    SCH_TABLE_LOCATOR = By.CSS_SELECTOR, "div#CourtsScheduler table.k-scheduler-table"
+    SCH_RELOAD_LOCATOR = \
+        By.CSS_SELECTOR, "div#CourtsScheduler div.k-scheduler-toolbar span.k-i-reload"
     SCH_DATE_LOCATOR = By.CSS_SELECTOR, "span.k-lg-date-format"
     NEXT_DAY_LOCATOR = By.CSS_SELECTOR, "button.k-nav-next"
     ONE_DAY = timedelta(days=1)
@@ -201,11 +202,15 @@ class PacControl(AbstractContextManager["PacControl"]):
     # end mouseOver(str, tuple[str, str], WebElement | None)
 
     def waitForSchedule(self) -> None:
-        wait = WebDriverWait(self.webDriver, 15)
-        wait.until(visibility_of_element_located(PacControl.SCH_LOADING_LOCATOR),
-                   "Timed out waiting for loading indicator")
-        wait.until(invisibility_of_element_located(PacControl.SCH_LOADING_LOCATOR),
-                   "Timed out waiting for schedule table")
+        # give the loading indicator a few seconds to appear, sometimes we miss it
+        try:
+            WebDriverWait(self.webDriver, 5).until(
+                visibility_of_element_located(PacControl.SCH_LOADING_LOCATOR))
+        except TimeoutException:
+            pass
+        WebDriverWait(self.webDriver, 15).until(
+            invisibility_of_element_located(PacControl.SCH_LOADING_LOCATOR),
+            "Timed out waiting for schedule table")
     # end waitForSchedule()
 
     def navigateToSchedule(self) -> None:
@@ -215,9 +220,14 @@ class PacControl(AbstractContextManager["PacControl"]):
 
             resLink.get_property("parentElement").find_element(
                 *PacControl.BOOK_LOCATOR).click()
-            WebDriverWait(self.webDriver, 15).until(
-                visibility_of_element_located(PacControl.SCH_TABLE_LOCATOR),
-                "Timed out waiting to open court schedule page")
+            waiter = WebDriverWait(self.webDriver, 15)
+            waiter.until(invisibility_of_element_located(PacControl.SCH_LOADING_LOCATOR),
+                         "Timed out waiting to clear schedule loading indicator")
+            reload = waiter.until(element_to_be_clickable(PacControl.SCH_RELOAD_LOCATOR),
+                                  "Timed out waiting to open court schedule page")
+
+            doingMsg = "reload schedule to force loading indicator"
+            reload.click()
             self.waitForSchedule()
 
             doingMsg = "read initial schedule date"
