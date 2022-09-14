@@ -297,38 +297,43 @@ class PacControl(AbstractContextManager["PacControl"]):
         doingMsg = "select reservation type dropdown list"
         try:
             self.resForm.find_element(*PacControl.RES_TYPE_LOCATOR).click()
-            WebDriverWait(self.webDriver, 15).until(
-                element_to_be_clickable(PacControl.RES_TYPE_ITEM_LOCATOR),
-                "Timed out waiting for reservation type dropdown list")
+            waiter = WebDriverWait(self.webDriver, 15)
+            waiter.until(element_to_be_clickable(PacControl.RES_TYPE_ITEM_LOCATOR),
+                         "Timed out waiting for reservation type dropdown list")
 
             doingMsg = "select reservation type"
-            htmlItems: list[WebElement] = self.webDriver.find_elements(
-                *PacControl.RES_TYPE_ITEM_LOCATOR)
+            self.selectDesiredElement(PacControl.RES_TYPE_ITEM_LOCATOR, "Singles")
 
-            for htmlItem in htmlItems:
-                if htmlItem.text == "Singles":
-                    htmlItem.click()
-                    break
-            # end for
             doingMsg = "select duration dropdown list"
             self.resForm.find_element(*PacControl.RES_DURATION_LOCATOR).click()
-            WebDriverWait(self.webDriver, 15).until(
-                element_to_be_clickable(PacControl.RES_DURATION_ITEM_LOCATOR),
-                "Timed out waiting for duration dropdown list")
+            waiter.until(element_to_be_clickable(PacControl.RES_DURATION_ITEM_LOCATOR),
+                         "Timed out waiting for duration dropdown list")
 
             doingMsg = "select duration"
-            htmlItems = self.resForm.find_elements(*PacControl.RES_DURATION_ITEM_LOCATOR)
             duration = "1 hour & 30 minutes" if self.found.courtTime.duration == 90 else \
                 "1 hour" if self.found.courtTime.duration == 60 else "30 minutes"
-
-            for htmlItem in htmlItems:
-                if htmlItem.text == duration:
-                    htmlItem.click()
-                    break
-            # end for
+            self.selectDesiredElement(PacControl.RES_DURATION_ITEM_LOCATOR, duration)
         except WebDriverException as e:
             raise PacException.fromXcp(doingMsg, e) from e
     # end setReservationParameters()
+
+    def selectDesiredElement(self, listLocator: tuple[str, str], desiredText: str) -> bool:
+        htmlItems = self.webDriver.find_elements(*listLocator)
+
+        for htmlItem in htmlItems:
+            if htmlItem.text == desiredText:
+                htmlItem.click()
+
+                # Wait for selection to disappear after selecting desired item
+                WebDriverWait(self.webDriver, 5).until(
+                    invisibility_of_element(htmlItem),
+                    f"Timed out waiting to select {desiredText}")
+
+                return True
+        # end for
+
+        return False
+    # end selectDesiredElement(tuple[str, str], str)
 
     def addPlayer(self) -> None:
         try:
