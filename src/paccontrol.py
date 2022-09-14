@@ -56,8 +56,8 @@ class PacControl(AbstractContextManager["PacControl"]):
     NO_COURTS_MSG = "No available courts found"
     PAC_LOG_IN = "https://app.courtreserve.com/"
     LOGIN_FORM_LOCATOR = By.CSS_SELECTOR, "form#loginForm"
-    USERNAME_LOCATOR = By.CSS_SELECTOR, "input#Username"
     PASSWORD_LOCATOR = By.CSS_SELECTOR, "input#Password"
+    USERNAME_LOCATOR = By.CSS_SELECTOR, "input#Username"
     MY_ACCOUNT = By.CSS_SELECTOR, "li#my-account-li-web"
     PAC_LOG_OUT = By.LINK_TEXT, "Log Out"
     SCH_LOADING_LOCATOR = By.CSS_SELECTOR, "div#CourtsScheduler div.k-loading-mask"
@@ -302,7 +302,7 @@ class PacControl(AbstractContextManager["PacControl"]):
                          "Timed out waiting for reservation type dropdown list")
 
             doingMsg = "select reservation type"
-            self.selectDesiredElement(PacControl.RES_TYPE_ITEM_LOCATOR, "Singles")
+            self.selectDesiredItem(PacControl.RES_TYPE_ITEM_LOCATOR, "Singles")
 
             doingMsg = "select duration dropdown list"
             self.resForm.find_element(*PacControl.RES_DURATION_LOCATOR).click()
@@ -312,12 +312,12 @@ class PacControl(AbstractContextManager["PacControl"]):
             doingMsg = "select duration"
             duration = "1 hour & 30 minutes" if self.found.courtTime.duration == 90 else \
                 "1 hour" if self.found.courtTime.duration == 60 else "30 minutes"
-            self.selectDesiredElement(PacControl.RES_DURATION_ITEM_LOCATOR, duration)
+            self.selectDesiredItem(PacControl.RES_DURATION_ITEM_LOCATOR, duration)
         except WebDriverException as e:
             raise PacException.fromXcp(doingMsg, e) from e
     # end setReservationParameters()
 
-    def selectDesiredElement(self, listLocator: tuple[str, str], desiredText: str) -> bool:
+    def selectDesiredItem(self, listLocator: tuple[str, str], desiredText: str) -> bool:
         htmlItems = self.webDriver.find_elements(*listLocator)
 
         for htmlItem in htmlItems:
@@ -333,16 +333,13 @@ class PacControl(AbstractContextManager["PacControl"]):
         # end for
 
         return False
-    # end selectDesiredElement(tuple[str, str], str)
+    # end selectDesiredItem(tuple[str, str], str)
 
     def addPlayer(self) -> None:
         try:
             if player := next(self.playerItr, None):
                 self.playerHasAlreadyReserved = False
                 self.selectPlayer(player.username)
-                WebDriverWait(self.webDriver, 15).until(
-                    element_to_be_clickable(PacControl.ADD_NAME_LOCATOR),
-                    "Timed out waiting for player entry field")
                 self.player2 = player.nickname
             else:
                 raise PacException("Need another player for reservation")
@@ -367,14 +364,8 @@ class PacControl(AbstractContextManager["PacControl"]):
                         f"Timed out waiting for {playerName} in list")
 
                     doingMsg = f"add player {playerName} to reservation"
-                    htmlItems = self.webDriver.find_elements(*PacControl.ADD_NAME_ITEM_LOCATOR)
-
-                    for htmlItem in htmlItems:
-                        if htmlItem.text == playerName:
-                            # found the player, stop retrying
-                            htmlItem.click()
-                            return
-                    # end for
+                    if self.selectDesiredItem(PacControl.ADD_NAME_ITEM_LOCATOR, playerName):
+                        return
 
                     raise PacException(f"Unable to find player {playerName}")
                 except TimeoutException as e:
