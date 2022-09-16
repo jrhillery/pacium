@@ -73,7 +73,7 @@ class PacControl(AbstractContextManager["PacControl"]):
     RES_TYPE_ITEM_LOCATOR = \
         By.CSS_SELECTOR, "ul#ReservationTypeId_listbox[aria-hidden='false'] > li"
     RES_DURATION_LOCATOR = By.CSS_SELECTOR, "span[aria-controls='Duration_listbox']"
-    RES_DURATION_ITEM_LOCATOR = \
+    RES_DUR_ITEM_LOCATOR = \
         By.CSS_SELECTOR, "ul#Duration_listbox[aria-hidden='false'] > li"
     ADD_NAME_LOCATOR = By.CSS_SELECTOR, "input[name='OwnersDropdown_input']"
     ADD_NAME_ITEM_LOCATOR = By.CSS_SELECTOR, "ul#OwnersDropdown_listbox > li"
@@ -84,6 +84,8 @@ class PacControl(AbstractContextManager["PacControl"]):
 
     def __init__(self, args: PacArgs):
         self.webDriver: WebDriver | None = None
+        self.localWait: WebDriverWait | None = None
+        self.remoteWait: WebDriverWait | None = None
         self.logOutHref: str | None = None
         self.resForm: WebElement | None = None
         self.found: CourtAndTime | None = None
@@ -129,6 +131,8 @@ class PacControl(AbstractContextManager["PacControl"]):
             crOpts = webdriver.ChromeOptions()
             crOpts.add_experimental_option("excludeSwitches", ["enable-logging"])
             self.webDriver = webdriver.Chrome(options=crOpts)
+            self.localWait = WebDriverWait(self.webDriver, 5)
+            self.remoteWait = WebDriverWait(self.webDriver, 15)
 
             return self.webDriver
         except WebDriverException as e:
@@ -155,9 +159,8 @@ class PacControl(AbstractContextManager["PacControl"]):
 
             doingMsg = "submit log-in form"
             liForm.submit()
-            WebDriverWait(self.webDriver, 15).until(
-                element_to_be_clickable(PacControl.MY_ACCOUNT),
-                "Timed out waiting to log-in")
+            self.remoteWait.until(element_to_be_clickable(PacControl.MY_ACCOUNT),
+                                  "Timed out waiting to log-in")
 
             # now on home page
             doingMsg = "saving log out reference"
@@ -174,9 +177,8 @@ class PacControl(AbstractContextManager["PacControl"]):
         doingMsg = "logging out"
         try:
             self.webDriver.get(self.logOutHref)
-            WebDriverWait(self.webDriver, 15).until(
-                invisibility_of_element_located(PacControl.MY_ACCOUNT),
-                "Timed out waiting to log out")
+            self.remoteWait.until(invisibility_of_element_located(PacControl.MY_ACCOUNT),
+                                  "Timed out waiting to log out")
 
             self.logOutHref = None
             # give us a chance to see we are logged out
@@ -205,11 +207,11 @@ class PacControl(AbstractContextManager["PacControl"]):
         """Give the loading indicator a few seconds to appear (sometimes
             we miss it) then wait for the indicator to disappear"""
         try:
-            WebDriverWait(self.webDriver, 5).until(
+            self.localWait.until(
                 visibility_of_element_located(PacControl.SCH_LOADING_LOCATOR))
         except TimeoutException:
             pass
-        WebDriverWait(self.webDriver, 15).until(
+        self.remoteWait.until(
             invisibility_of_element_located(PacControl.SCH_LOADING_LOCATOR),
             "Timed out waiting for schedule table")
     # end waitForSchedule()
@@ -221,11 +223,12 @@ class PacControl(AbstractContextManager["PacControl"]):
 
             resLink.get_property("parentElement").find_element(
                 *PacControl.BOOK_LOCATOR).click()
-            waiter = WebDriverWait(self.webDriver, 15)
-            waiter.until(invisibility_of_element_located(PacControl.SCH_LOADING_LOCATOR),
-                         "Timed out waiting to clear schedule loading indicator")
-            reload = waiter.until(element_to_be_clickable(PacControl.SCH_RELOAD_LOCATOR),
-                                  "Timed out waiting to open court schedule page")
+            self.remoteWait.until(
+                invisibility_of_element_located(PacControl.SCH_LOADING_LOCATOR),
+                "Timed out waiting to clear schedule loading indicator")
+            reload = self.remoteWait.until(
+                element_to_be_clickable(PacControl.SCH_RELOAD_LOCATOR),
+                "Timed out waiting to open court schedule page")
 
             doingMsg = "reload schedule to force loading indicator"
             reload.click()
@@ -286,9 +289,8 @@ class PacControl(AbstractContextManager["PacControl"]):
             doingMsg = "select court start time"
             self.findSchBlock(self.found.court, self.found.startTime).click()
 
-            WebDriverWait(self.webDriver, 15).until(
-                element_to_be_clickable(PacControl.RES_TYPE_LOCATOR),
-                "Timed out waiting to open reservation dialog")
+            self.remoteWait.until(element_to_be_clickable(PacControl.RES_TYPE_LOCATOR),
+                                  "Timed out waiting to open reservation dialog")
             self.resForm = self.webDriver.find_element(*PacControl.RES_FORM_LOCATOR)
         except WebDriverException as e:
             raise PacException.fromXcp(doingMsg, e) from e
@@ -298,22 +300,21 @@ class PacControl(AbstractContextManager["PacControl"]):
         doingMsg = "select reservation type dropdown list"
         try:
             self.resForm.find_element(*PacControl.RES_TYPE_LOCATOR).click()
-            waiter = WebDriverWait(self.webDriver, 15)
-            waiter.until(element_to_be_clickable(PacControl.RES_TYPE_ITEM_LOCATOR),
-                         "Timed out waiting for reservation type dropdown list")
+            self.localWait.until(element_to_be_clickable(PacControl.RES_TYPE_ITEM_LOCATOR),
+                                 "Timed out waiting for reservation type dropdown list")
 
             doingMsg = "select reservation type"
             self.selectDesiredItem(PacControl.RES_TYPE_ITEM_LOCATOR, "Singles")
 
             doingMsg = "select duration dropdown list"
             self.resForm.find_element(*PacControl.RES_DURATION_LOCATOR).click()
-            waiter.until(element_to_be_clickable(PacControl.RES_DURATION_ITEM_LOCATOR),
-                         "Timed out waiting for duration dropdown list")
+            self.localWait.until(element_to_be_clickable(PacControl.RES_DUR_ITEM_LOCATOR),
+                                 "Timed out waiting for duration dropdown list")
 
             doingMsg = "select duration"
             duration = "1 hour & 30 minutes" if self.found.courtTime.duration == 90 else \
                 "1 hour" if self.found.courtTime.duration == 60 else "30 minutes"
-            self.selectDesiredItem(PacControl.RES_DURATION_ITEM_LOCATOR, duration)
+            self.selectDesiredItem(PacControl.RES_DUR_ITEM_LOCATOR, duration)
         except WebDriverException as e:
             raise PacException.fromXcp(doingMsg, e) from e
     # end setReservationParameters()
@@ -328,9 +329,8 @@ class PacControl(AbstractContextManager["PacControl"]):
                 htmlItem.click()
 
                 # Wait for selection to disappear after selecting desired item
-                WebDriverWait(self.webDriver, 5).until(
-                    invisibility_of_element(htmlItem),
-                    f"Timed out waiting to select {desiredText}")
+                self.localWait.until(invisibility_of_element(htmlItem),
+                                     f"Timed out waiting to select {desiredText}")
 
                 return True
         # end for
@@ -362,7 +362,7 @@ class PacControl(AbstractContextManager["PacControl"]):
 
                 try:
                     doingMsg = "find player"
-                    WebDriverWait(self.webDriver, 15).until(
+                    self.remoteWait.until(
                         element_to_be_clickable(PacControl.ADD_NAME_ITEM_LOCATOR),
                         f"Timed out waiting for {playerName} in list")
 
@@ -392,9 +392,8 @@ class PacControl(AbstractContextManager["PacControl"]):
                 errorMsg = errWin.text
                 try:
                     errWin.find_element(*PacControl.DISMISS_ERROR_LOCATOR).click()
-                    WebDriverWait(self.webDriver, 15).until(
-                        invisibility_of_element(errWin),
-                        "Timed out waiting to dismiss error")
+                    self.localWait.until(invisibility_of_element(errWin),
+                                         "Timed out waiting to dismiss error")
                 except WebDriverException as e:
                     raise PacException.fromXcp(f"dismissing error: {errorMsg}", e) from e
 
@@ -421,7 +420,7 @@ class PacControl(AbstractContextManager["PacControl"]):
                 else:
                     doingMsg = "confirming reservation"
                     self.resForm.find_element(*PacControl.RES_CONFIRM_LOCATOR).click()
-                    WebDriverWait(self.webDriver, 15).until(any_of(
+                    self.remoteWait.until(any_of(
                         invisibility_of_element(self.resForm),
                         visibility_of_element_located(PacControl.ERROR_WIN_LOCATOR)),
                         "Timed out waiting to confirm reservation")
@@ -445,9 +444,8 @@ class PacControl(AbstractContextManager["PacControl"]):
         doingMsg = "canceling pending reservation"
         try:
             self.resForm.find_element(*PacControl.RES_CANCEL_LOCATOR).click()
-            WebDriverWait(self.webDriver, 15).until(
-                invisibility_of_element(self.resForm),
-                "Timed out waiting to cancel pending reservation")
+            self.remoteWait.until(invisibility_of_element(self.resForm),
+                                  "Timed out waiting to cancel pending reservation")
 
             self.resForm = None
         except WebDriverException as e:
