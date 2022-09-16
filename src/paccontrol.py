@@ -202,7 +202,8 @@ class PacControl(AbstractContextManager["PacControl"]):
     # end mouseOver(str, tuple[str, str], WebElement | None)
 
     def waitForSchedule(self) -> None:
-        # give the loading indicator a few seconds to appear, sometimes we miss it
+        """Give the loading indicator a few seconds to appear (sometimes
+            we miss it) then wait for the indicator to disappear"""
         try:
             WebDriverWait(self.webDriver, 5).until(
                 visibility_of_element_located(PacControl.SCH_LOADING_LOCATOR))
@@ -318,6 +319,8 @@ class PacControl(AbstractContextManager["PacControl"]):
     # end setReservationParameters()
 
     def selectDesiredItem(self, listLocator: tuple[str, str], desiredText: str) -> bool:
+        """Find the list of located elements, click the one with our
+            desired text then wait for the element found to disappear"""
         htmlItems = self.webDriver.find_elements(*listLocator)
 
         for htmlItem in htmlItems:
