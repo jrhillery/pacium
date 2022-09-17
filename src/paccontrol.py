@@ -236,7 +236,7 @@ class PacControl(AbstractContextManager["PacControl"]):
 
             doingMsg = "read initial schedule date"
             schDate = self.webDriver.find_element(
-                *PacControl.SCH_DATE_LOCATOR).get_attribute("innerText")
+                *PacControl.SCH_DATE_LOCATOR).get_property("innerText")
             diff = self.requestDate - datetime.strptime(schDate, "%A, %B %d, %Y").date()
 
             while diff:
@@ -416,7 +416,8 @@ class PacControl(AbstractContextManager["PacControl"]):
             if not self.needsToTryAgain():
                 if self.testMode:
                     butt = self.resForm.find_element(*PacControl.RES_CONFIRM_LOCATOR)
-                    logging.info(f"{butt.get_attribute('innerText')} enabled: {butt.is_enabled()}")
+                    logging.info(f"{butt.get_property('innerText')} "
+                                 f"enabled: {butt.is_enabled()}")
                 else:
                     doingMsg = "confirming reservation"
                     self.resForm.find_element(*PacControl.RES_CONFIRM_LOCATOR).click()
