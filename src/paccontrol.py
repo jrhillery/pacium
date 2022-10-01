@@ -148,7 +148,7 @@ class PacControl(AbstractContextManager["PacControl"]):
                                   "Timed out waiting to log-in")
 
             # now on home page
-            doingMsg = "saving log out reference"
+            doingMsg = "store log out reference"
             maList = self.mouseOver("hover over my account", PacControl.MY_ACCOUNT)
 
             self.logOutHref = maList.find_element(
@@ -168,7 +168,7 @@ class PacControl(AbstractContextManager["PacControl"]):
             # give us a chance to see we are logged out
             sleep(0.75)
         except WebDriverException as e:
-            raise PacException.fromXcp("logging out", e) from e
+            raise PacException.fromXcp("log out", e) from e
     # end logOut()
 
     def mouseOver(self, unableMsg: str, locator: tuple[str, str],
@@ -384,7 +384,7 @@ class PacControl(AbstractContextManager["PacControl"]):
                     self.localWait.until(invisibility_of_element(errWin),
                                          "Timed out waiting to dismiss error")
                 except WebDriverException as e:
-                    raise PacException.fromXcp(f"dismissing error: {errorMsg}", e) from e
+                    raise PacException.fromXcp(f"dismiss error: {errorMsg}", e) from e
 
                 if "requires 1 additional player" in errorMsg \
                         or "not allowed on this reservation" in errorMsg:
@@ -408,7 +408,7 @@ class PacControl(AbstractContextManager["PacControl"]):
                     logging.info(f"{butt.get_property('innerText')} "
                                  f"enabled: {butt.is_enabled()}")
                 else:
-                    doingMsg = "confirming reservation"
+                    doingMsg = "confirm reservation"
                     self.resForm.find_element(*PacControl.RES_CONFIRM_LOCATOR).click()
                     self.remoteWait.until(any_of(
                         invisibility_of_element(self.resForm),
@@ -431,7 +431,6 @@ class PacControl(AbstractContextManager["PacControl"]):
     # end needsToTryAgain()
 
     def cancelPendingReservation(self) -> None:
-        doingMsg = "canceling pending reservation"
         try:
             self.resForm.find_element(By.CSS_SELECTOR, "button[type='reset']").click()
             self.remoteWait.until(invisibility_of_element(self.resForm),
@@ -439,7 +438,7 @@ class PacControl(AbstractContextManager["PacControl"]):
 
             self.resForm = None
         except WebDriverException as e:
-            raise PacException.fromXcp(doingMsg, e) from e
+            raise PacException.fromXcp("cancel pending reservation", e) from e
 
         # give us a chance to see reservation cancelled
         sleep(0.5)
