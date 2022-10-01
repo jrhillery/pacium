@@ -55,32 +55,17 @@ class PacControl(AbstractContextManager["PacControl"]):
     """Controls Prosperity Athletic Club web pages"""
     NO_COURTS_MSG = "No available courts found"
     PAC_LOG_IN = "https://app.courtreserve.com/"
-    LOGIN_FORM_LOCATOR = By.CSS_SELECTOR, "form#loginForm"
-    PASSWORD_LOCATOR = By.CSS_SELECTOR, "input#Password"
-    USERNAME_LOCATOR = By.CSS_SELECTOR, "input#Username"
     MY_ACCOUNT = By.CSS_SELECTOR, "li#my-account-li-web"
-    PAC_LOG_OUT = By.LINK_TEXT, "Log Out"
     SCH_LOADING_LOCATOR = By.CSS_SELECTOR, "div#CourtsScheduler div.k-loading-mask"
-    RESERVE_LOCATOR = By.LINK_TEXT, "Reservations"
-    BOOK_LOCATOR = By.LINK_TEXT, "Book a Court"
-    SCH_RELOAD_LOCATOR = \
-        By.CSS_SELECTOR, "div#CourtsScheduler div.k-scheduler-toolbar span.k-i-reload"
-    SCH_DATE_LOCATOR = By.CSS_SELECTOR, "span.k-lg-date-format"
-    NEXT_DAY_LOCATOR = By.CSS_SELECTOR, "button.k-nav-next"
     ONE_DAY = timedelta(days=1)
     RES_TYPE_LOCATOR = By.CSS_SELECTOR, "span[aria-controls='ReservationTypeId_listbox']"
-    RES_FORM_LOCATOR = By.CSS_SELECTOR, "form#createReservation-Form"
     RES_TYPE_ITEM_LOCATOR = \
         By.CSS_SELECTOR, "ul#ReservationTypeId_listbox[aria-hidden='false'] > li"
-    RES_DURATION_LOCATOR = By.CSS_SELECTOR, "span[aria-controls='Duration_listbox']"
     RES_DUR_ITEM_LOCATOR = \
         By.CSS_SELECTOR, "ul#Duration_listbox[aria-hidden='false'] > li"
-    ADD_NAME_LOCATOR = By.CSS_SELECTOR, "input[name='OwnersDropdown_input']"
     ADD_NAME_ITEM_LOCATOR = By.CSS_SELECTOR, "ul#OwnersDropdown_listbox > li"
     ERROR_WIN_LOCATOR = By.CSS_SELECTOR, "div.swal2-icon-error, div#error-modal"
-    DISMISS_ERROR_LOCATOR = By.CSS_SELECTOR, "button.swal2-confirm, button[type='reset']"
     RES_CONFIRM_LOCATOR = By.CSS_SELECTOR, "button.btn-submit"
-    RES_CANCEL_LOCATOR = By.CSS_SELECTOR, "button[type='reset']"
 
     def __init__(self, args: PacArgs):
         self.webDriver: WebDriver | None = None
@@ -146,15 +131,15 @@ class PacControl(AbstractContextManager["PacControl"]):
             self.webDriver.get(PacControl.PAC_LOG_IN)
 
             doingMsg = "find log-in form"
-            liForm: WebElement = self.webDriver.find_element(*PacControl.LOGIN_FORM_LOCATOR)
+            liForm = self.webDriver.find_element(By.CSS_SELECTOR, "form#loginForm")
             self.playerItr = iter(self.players.people)
 
             doingMsg = "enter password"
-            liForm.find_element(*PacControl.PASSWORD_LOCATOR).send_keys(
+            liForm.find_element(By.CSS_SELECTOR, "input#Password").send_keys(
                 self.players.password)
 
             doingMsg = "enter first username"
-            liForm.find_element(*PacControl.USERNAME_LOCATOR).send_keys(
+            liForm.find_element(By.CSS_SELECTOR, "input#Username").send_keys(
                 next(self.playerItr).username)
 
             doingMsg = "submit log-in form"
@@ -167,14 +152,13 @@ class PacControl(AbstractContextManager["PacControl"]):
             maList = self.mouseOver("hover over my account", PacControl.MY_ACCOUNT)
 
             self.logOutHref = maList.find_element(
-                *PacControl.PAC_LOG_OUT).get_property("href")
+                By.LINK_TEXT, "Log Out").get_property("href")
         except WebDriverException as e:
             raise PacException.fromXcp(doingMsg, e) from e
     # end logIn()
 
     def logOut(self) -> None:
         """Log-out from Prosperity Athletic Club"""
-        doingMsg = "logging out"
         try:
             self.webDriver.get(self.logOutHref)
             self.remoteWait.until(invisibility_of_element_located(PacControl.MY_ACCOUNT),
@@ -184,7 +168,7 @@ class PacControl(AbstractContextManager["PacControl"]):
             # give us a chance to see we are logged out
             sleep(0.75)
         except WebDriverException as e:
-            raise PacException.fromXcp(doingMsg, e) from e
+            raise PacException.fromXcp("logging out", e) from e
     # end logOut()
 
     def mouseOver(self, unableMsg: str, locator: tuple[str, str],
@@ -219,15 +203,16 @@ class PacControl(AbstractContextManager["PacControl"]):
     def navigateToSchedule(self) -> None:
         doingMsg = "book a court on home page"
         try:
-            resLink = self.mouseOver("hover over reservations", PacControl.RESERVE_LOCATOR)
+            resLink = self.mouseOver("hover over reservations", (By.LINK_TEXT, "Reservations"))
 
             resLink.get_property("parentElement").find_element(
-                *PacControl.BOOK_LOCATOR).click()
+                By.LINK_TEXT, "Book a Court").click()
             self.remoteWait.until(
                 invisibility_of_element_located(PacControl.SCH_LOADING_LOCATOR),
                 "Timed out waiting to clear schedule loading indicator")
-            reload = self.remoteWait.until(
-                element_to_be_clickable(PacControl.SCH_RELOAD_LOCATOR),
+            reload = self.remoteWait.until(element_to_be_clickable(
+                (By.CSS_SELECTOR,
+                 "div#CourtsScheduler div.k-scheduler-toolbar span.k-i-reload")),
                 "Timed out waiting to open court schedule page")
 
             doingMsg = "reload schedule to force loading indicator"
@@ -236,12 +221,12 @@ class PacControl(AbstractContextManager["PacControl"]):
 
             doingMsg = "read initial schedule date"
             schDate = self.webDriver.find_element(
-                *PacControl.SCH_DATE_LOCATOR).get_property("innerText")
+                By.CSS_SELECTOR, "span.k-lg-date-format").get_property("innerText")
             diff = self.requestDate - datetime.strptime(schDate, "%A, %B %d, %Y").date()
 
             while diff:
                 doingMsg = f"request date {self.requestDate} on schedule in {diff}"
-                self.webDriver.find_element(*PacControl.NEXT_DAY_LOCATOR).click()
+                self.webDriver.find_element(By.CSS_SELECTOR, "button.k-nav-next").click()
                 self.waitForSchedule()
                 diff -= PacControl.ONE_DAY
             # end while
@@ -291,7 +276,8 @@ class PacControl(AbstractContextManager["PacControl"]):
 
             self.remoteWait.until(element_to_be_clickable(PacControl.RES_TYPE_LOCATOR),
                                   "Timed out waiting to open reservation dialog")
-            self.resForm = self.webDriver.find_element(*PacControl.RES_FORM_LOCATOR)
+            self.resForm = self.webDriver.find_element(
+                By.CSS_SELECTOR, "form#createReservation-Form")
         except WebDriverException as e:
             raise PacException.fromXcp(doingMsg, e) from e
     # end selectAvailableCourt()
@@ -307,7 +293,8 @@ class PacControl(AbstractContextManager["PacControl"]):
             self.selectDesiredItem(PacControl.RES_TYPE_ITEM_LOCATOR, "Singles")
 
             doingMsg = "select duration dropdown list"
-            self.resForm.find_element(*PacControl.RES_DURATION_LOCATOR).click()
+            self.resForm.find_element(
+                By.CSS_SELECTOR, "span[aria-controls='Duration_listbox']").click()
             self.localWait.until(element_to_be_clickable(PacControl.RES_DUR_ITEM_LOCATOR),
                                  "Timed out waiting for duration dropdown list")
 
@@ -356,7 +343,8 @@ class PacControl(AbstractContextManager["PacControl"]):
         try:
             while True:
                 doingMsg = "key-in player for reservation"
-                inputFld = self.resForm.find_element(*PacControl.ADD_NAME_LOCATOR)
+                inputFld = self.resForm.find_element(
+                    By.CSS_SELECTOR, "input[name='OwnersDropdown_input']")
                 inputFld.clear()
                 inputFld.send_keys(playerName)
 
@@ -391,7 +379,8 @@ class PacControl(AbstractContextManager["PacControl"]):
             if errWin.is_displayed():
                 errorMsg = errWin.text
                 try:
-                    errWin.find_element(*PacControl.DISMISS_ERROR_LOCATOR).click()
+                    errWin.find_element(By.CSS_SELECTOR,
+                                        "button.swal2-confirm, button[type='reset']").click()
                     self.localWait.until(invisibility_of_element(errWin),
                                          "Timed out waiting to dismiss error")
                 except WebDriverException as e:
@@ -444,7 +433,7 @@ class PacControl(AbstractContextManager["PacControl"]):
     def cancelPendingReservation(self) -> None:
         doingMsg = "canceling pending reservation"
         try:
-            self.resForm.find_element(*PacControl.RES_CANCEL_LOCATOR).click()
+            self.resForm.find_element(By.CSS_SELECTOR, "button[type='reset']").click()
             self.remoteWait.until(invisibility_of_element(self.resForm),
                                   "Timed out waiting to cancel pending reservation")
 
