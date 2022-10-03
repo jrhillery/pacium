@@ -13,12 +13,20 @@
          "tId": "185"
       },
       {
+         "name": "Court #9",
+         "tId": "186"
+      },
+      {
+         "name": "Court #5",
+         "tId": "182"
+      },
+      {
          "name": "Court #3",
          "tId": "180"
       },
       {
-         "name": "Court #9",
-         "tId": "186"
+         "name": "Court #4",
+         "tId": "181"
       },
       {
          "name": "Court #10",
@@ -33,20 +41,12 @@
          "tId": "179"
       },
       {
-         "name": "Court #5",
-         "tId": "182"
-      },
-      {
-         "name": "Court #1",
-         "tId": "178"
-      },
-      {
          "name": "Court #12",
          "tId": "189"
       },
       {
-         "name": "Court #4",
-         "tId": "181"
+         "name": "Court #1",
+         "tId": "178"
       }
    ]
 }
