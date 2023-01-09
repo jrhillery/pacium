@@ -67,7 +67,7 @@ class CourtTimes(NamedTuple):
     # end load(str)
 
     def save(self, fileNm: Path) -> None:
-        with open(fileNm, "w", encoding="utf-8") as file:
+        with open(fileNm, "w", encoding="utf-8", newline="\n") as file:
             dct = {"timesInPreferredOrder":
                    [{"startTime": ct.startTime.isoformat(timespec="minutes"),
                      "duration": ct.duration} for ct in self.timesInPreferredOrder]}

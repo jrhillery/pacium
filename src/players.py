@@ -26,7 +26,7 @@ class Players(NamedTuple):
     # end load(str)
 
     def save(self, fileNm: Path) -> None:
-        with open(fileNm, "w", encoding="utf-8") as file:
+        with open(fileNm, "w", encoding="utf-8", newline="\n") as file:
             dct = {"people": [user._asdict() for user in self.people],
                    "password": self.password}
             json.dump(dct, file, ensure_ascii=False, indent=3)
