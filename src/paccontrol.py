@@ -290,7 +290,7 @@ class PacControl(AbstractContextManager["PacControl"]):
                                  "Timed out waiting for reservation type dropdown list")
 
             doingMsg = "select reservation type"
-            self.selectDesiredItem(PacControl.RES_TYPE_ITEM_LOCATOR, "Singles")
+            self.selectDesiredItem(PacControl.RES_TYPE_ITEM_LOCATOR, "Tennis Singles")
 
             doingMsg = "select duration dropdown list"
             self.resForm.find_element(
