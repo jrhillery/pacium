@@ -11,6 +11,22 @@
       {
          "name": "Court #1",
          "tId": "178"
+      },
+      {
+         "name": "Court #6",
+         "tId": "183"
+      },
+      {
+         "name": "Court #7",
+         "tId": "184"
+      },
+      {
+         "name": "Court #8",
+         "tId": "185"
+      },
+      {
+         "name": "Court #9",
+         "tId": "186"
       }
    ]
 }
