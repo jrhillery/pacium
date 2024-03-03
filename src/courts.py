@@ -22,14 +22,14 @@ class Courts(NamedTuple):
         with open(fileNm, "r", encoding="utf-8") as file:
 
             return json.load(file, object_hook=decodeCourts)
-    # end load(str)
+    # end load(Path)
 
     def save(self, fileNm: Path) -> None:
         with open(fileNm, "w", encoding="utf-8", newline="\n") as file:
             dct = {"courtsInPreferredOrder":
                    [court._asdict() for court in self.courtsInPreferredOrder]}
             json.dump(dct, file, ensure_ascii=False, indent=3)
-    # end save(str)
+    # end save(Path)
 
 # end class Courts
 

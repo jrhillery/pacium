@@ -64,7 +64,7 @@ class CourtTimes(NamedTuple):
         with open(fileNm, "r", encoding="utf-8") as file:
 
             return json.load(file, object_hook=decodeCourtTimes)
-    # end load(str)
+    # end load(Path)
 
     def save(self, fileNm: Path) -> None:
         with open(fileNm, "w", encoding="utf-8", newline="\n") as file:
@@ -72,7 +72,7 @@ class CourtTimes(NamedTuple):
                    [{"startTime": ct.startTime.isoformat(timespec="minutes"),
                      "duration": ct.duration} for ct in self.timesInPreferredOrder]}
             json.dump(dct, file, ensure_ascii=False, indent=3)
-    # end save(str)
+    # end save(Path)
 
     @staticmethod
     def nextDateForDay(dayOfWeekArg: str) -> date:

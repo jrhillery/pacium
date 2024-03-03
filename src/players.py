@@ -23,14 +23,14 @@ class Players(NamedTuple):
         with open(fileNm, "r", encoding="utf-8") as file:
 
             return json.load(file, object_hook=decodePlayers)
-    # end load(str)
+    # end load(Path)
 
     def save(self, fileNm: Path) -> None:
         with open(fileNm, "w", encoding="utf-8", newline="\n") as file:
             dct = {"people": [user._asdict() for user in self.people],
                    "password": self.password}
             json.dump(dct, file, ensure_ascii=False, indent=3)
-    # end save(str)
+    # end save(Path)
 
     def __str__(self) -> str:
         return str(self.people)
