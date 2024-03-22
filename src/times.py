@@ -29,7 +29,7 @@ class CourtTime(NamedTuple):
 
         while rTime < endTime:
             # colons need to be escaped in CSS selectors
-            tRows.append(rTime.time().isoformat(timespec="minutes").replace(":", "\:"))
+            tRows.append(rTime.time().isoformat(timespec="minutes").replace(":", "\\:"))
             rTime += CourtTime.THIRTY_MINUTES
         # end while
 
