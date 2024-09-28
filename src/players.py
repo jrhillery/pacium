@@ -53,6 +53,7 @@ def decodePlayers(jsonDict: dict):
 
 
 if __name__ == "__main__":
+    # noinspection SpellCheckingInspection
     data = Players([User("Diane", "dianehilleríe"),
                     User("Beckíe", "bkúmar"),
                     User("Peño", "mediterranián")], "tenis1")
