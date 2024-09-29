@@ -1,9 +1,23 @@
 
 import logging
+from io import TextIOWrapper
 from logging.config import dictConfig
+from logging.handlers import RotatingFileHandler
 
 from pacargs import PacArgs
 from paccontrol import PacControl, PacException
+
+
+class LfRotatingFileHandler(RotatingFileHandler):
+
+    def _open(self) -> TextIOWrapper:
+        logStream = super()._open()
+        logStream.reconfigure(newline="\n")
+
+        return logStream
+    # end _open()
+
+# end class LfRotatingFileHandler
 
 
 def configLogging(testLog: bool):
@@ -30,7 +44,7 @@ def configLogging(testLog: bool):
                 "stream": "ext://sys.stdout"
             },
             "file": {
-                "class": "logging.handlers.RotatingFileHandler",
+                "class": "pacium.LfRotatingFileHandler",
                 "level": "DEBUG",
                 "formatter": "detail",
                 "filename": "pacium.tst.log" if testLog else "pacium.log",
